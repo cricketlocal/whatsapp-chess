@@ -1,8 +1,11 @@
 import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
 
+// chess.js uses color "w" / "b". Text-presentation (U+FE0E) so Windows
+// does not hide black pieces as same-colour emoji.
+const TP = "\uFE0E";
 const UNICODE = {
-  wK: "♔", wQ: "♕", wR: "♖", wB: "♗", wN: "♘", wP: "♙",
-  kK: "♚", kQ: "♛", kR: "♜", kB: "♝", kN: "♞", kP: "♟",
+  wK: "♔" + TP, wQ: "♕" + TP, wR: "♖" + TP, wB: "♗" + TP, wN: "♘" + TP, wP: "♙" + TP,
+  bK: "♚" + TP, bQ: "♛" + TP, bR: "♜" + TP, bB: "♝" + TP, bN: "♞" + TP, bP: "♟" + TP,
 };
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -120,7 +123,7 @@ function renderBoard() {
       }
       if (piece) {
         const span = document.createElement("span");
-        span.className = "piece";
+        span.className = "piece piece-" + piece.color;
         span.textContent = UNICODE[piece.color + piece.type.toUpperCase()] || "";
         el.appendChild(span);
       }
@@ -193,6 +196,7 @@ function showPromo(from, to) {
   kinds.forEach((k) => {
     const b = document.createElement("button");
     b.type = "button";
+    b.className = "piece piece-" + colour;
     b.textContent = k.g;
     b.addEventListener("click", () => tryMove(from, to, k.t));
     promoBtns.appendChild(b);
