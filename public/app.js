@@ -11,12 +11,14 @@ const UNICODE = {
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 const params = new URLSearchParams(location.search);
-const you = params.get("you") === "b" ? "b" : "w";
-const game = new Chess(params.get("fen") || START);
+let you = params.get("you") === "b" ? "b" : "w";
+let gameId = (params.get("g") || "").toLowerCase();
+const game = new Chess(START);
 
 let selected = null;
 let pendingPromo = null;
 let lastMove = params.get("last") || "";
+let pollTimer = null;
 
 const boardEl = document.getElementById("board");
 const youLine = document.getElementById("you-line");
@@ -62,25 +64,20 @@ function lastSan() {
 
 function writeUrl() {
   const next = new URL(location.href);
+  next.search = "";
+  if (gameId) next.searchParams.set("g", gameId);
   next.searchParams.set("you", you);
-  next.searchParams.set("fen", game.fen());
-  if (lastMove) next.searchParams.set("last", lastMove);
-  else next.searchParams.delete("last");
-  const san = lastSan();
-  if (san) next.searchParams.set("san", san);
-  else next.searchParams.delete("san");
+  const n = game.history().length;
+  if (n) next.searchParams.set("n", String(n));
   history.replaceState(null, "", next);
 }
 
 function opponentUrl() {
-  const u = new URL(location.href);
+  const u = new URL(location.origin + location.pathname);
+  if (gameId) u.searchParams.set("g", gameId);
   u.searchParams.set("you", you === "w" ? "b" : "w");
-  u.searchParams.set("fen", game.fen());
-  if (lastMove) u.searchParams.set("last", lastMove);
-  else u.searchParams.delete("last");
-  const san = lastSan();
-  if (san) u.searchParams.set("san", san);
-  else u.searchParams.delete("san");
+  const n = game.history().length;
+  if (n) u.searchParams.set("n", String(n));
   return u.toString();
 }
 
@@ -149,7 +146,9 @@ function renderBoard() {
 }
 
 function renderStatus() {
-  youLine.textContent = `You are ${colourName(you)}`;
+  youLine.textContent = gameId
+    ? `You are ${colourName(you)} · Game ${gameId}`
+    : `You are ${colourName(you)}`;
   const hist = game.history();
   lastLine.textContent = hist.length ? `Last move: ${hist[hist.length - 1]}` : "Opening position";
 
@@ -188,6 +187,7 @@ function tryMove(from, to, promotion) {
   writeUrl();
   renderBoard();
   renderStatus();
+  saveGame();
   return true;
 }
 
@@ -269,10 +269,76 @@ async function copyLink() {
 }
 
 function newGame() {
-  const u = new URL(location.href);
-  u.search = "";
-  u.searchParams.set("you", "w");
-  location.href = u.toString();
+  location.href = location.pathname + "?you=w";
+}
+
+function applyRecord(rec) {
+  if (!rec) return;
+  gameId = rec.id;
+  if (Array.isArray(rec.moves) && rec.moves.length) {
+    game.reset();
+    for (const san of rec.moves) {
+      if (!game.move(san)) break;
+    }
+  } else if (rec.fen) {
+    game.load(rec.fen);
+  }
+  lastMove = rec.last || "";
+  writeUrl();
+  renderCoords();
+  renderBoard();
+  renderStatus();
+}
+
+async function saveGame() {
+  if (!gameId) return;
+  try {
+    await fetch("/api/games/" + gameId, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fen: game.fen(),
+        moves: game.history(),
+        last: lastMove,
+        san: lastSan(),
+      }),
+    });
+  } catch {
+    /* keep playing from local board */
+  }
+}
+
+async function boot() {
+  try {
+    if (gameId) {
+      const res = await fetch("/api/games/" + gameId);
+      if (res.ok) {
+        applyRecord(await res.json());
+      } else {
+        lastLine.textContent = "Game not found — start a new game";
+      }
+    } else {
+      const res = await fetch("/api/games", { method: "POST" });
+      if (!res.ok) throw new Error("Could not create game");
+      you = "w";
+      applyRecord(await res.json());
+    }
+  } catch {
+    lastLine.textContent = "Could not reach the game server";
+    writeUrl();
+    renderCoords();
+    renderBoard();
+    renderStatus();
+  }
+  pollTimer = setInterval(async () => {
+    if (!gameId || myTurn() || game.isGameOver()) return;
+    try {
+      const res = await fetch("/api/games/" + gameId);
+      if (!res.ok) return;
+      const rec = await res.json();
+      if (rec.fen && rec.fen !== game.fen()) applyRecord(rec);
+    } catch {}
+  }, 3000);
 }
 
 async function askHint() {
@@ -300,4 +366,4 @@ document.getElementById("btn-hint").addEventListener("click", askHint);
 renderCoords();
 renderBoard();
 renderStatus();
-writeUrl();
+boot();

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { boardPng, boardSvg } from "./board.mjs";
+import { createGame, getGame, saveGame, isGameId, publicGame } from "./games.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, "public");
@@ -37,11 +38,12 @@ function originOf(req) {
 }
 
 function boardOpts(url) {
-  const san = url.searchParams.get("san") || "";
+  const rec = isGameId(url.searchParams.get("g")) ? getGame(url.searchParams.get("g")) : null;
+  const san = url.searchParams.get("san") || rec?.san || "";
   const you = url.searchParams.get("you") === "b" ? "b" : "w";
   return {
-    fen: url.searchParams.get("fen") || START,
-    last: url.searchParams.get("last") || "",
+    fen: rec?.fen || url.searchParams.get("fen") || START,
+    last: url.searchParams.get("last") || rec?.last || "",
     flip: you === "b",
     caption: san ? `I made my move: ${san}` : "WhatsApp Chess — your move",
   };
@@ -138,25 +140,66 @@ const server = http.createServer(async (req, res) => {
         send(res, 404, "Not found");
         return;
       }
-      if (url.searchParams.get("fen") || url.searchParams.get("you") || url.searchParams.get("san")) {
+      const gid = url.searchParams.get("g");
+      const rec = isGameId(gid) ? getGame(gid) : null;
+      if (rec || url.searchParams.get("fen") || url.searchParams.get("you") || url.searchParams.get("san")) {
         const origin = originOf(req);
         const pageUrl = origin + url.pathname + url.search;
         const imgQs = new URLSearchParams();
-        imgQs.set("fen", url.searchParams.get("fen") || START);
-        if (url.searchParams.get("last")) imgQs.set("last", url.searchParams.get("last"));
+        if (rec) {
+          imgQs.set("g", rec.id);
+          imgQs.set("n", String((rec.moves || []).length));
+        }
+        imgQs.set("fen", rec?.fen || url.searchParams.get("fen") || START);
+        if (url.searchParams.get("last") || rec?.last) imgQs.set("last", url.searchParams.get("last") || rec.last);
         if (url.searchParams.get("you")) imgQs.set("you", url.searchParams.get("you"));
-        if (url.searchParams.get("san")) imgQs.set("san", url.searchParams.get("san"));
-        const san = url.searchParams.get("san") || "";
+        const san = url.searchParams.get("san") || rec?.san || "";
+        if (san) imgQs.set("san", san);
         html = injectShareMeta(html, {
           pageUrl,
           imageUrl: `${origin}/board.png?${imgQs}`,
           title: san ? `I made my move: ${san}` : "WhatsApp Chess — your move",
-          description: "Tap the board to play this turn.",
+          description: rec
+            ? `Game ${rec.id}. Tap the board to play this turn.`
+            : "Tap the board to play this turn.",
         });
       }
       send(res, 200, html, TYPES[".html"]);
     });
     return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/games") {
+    send(res, 201, JSON.stringify(publicGame(createGame())), TYPES[".json"]);
+    return;
+  }
+
+  const gameMatch = url.pathname.match(/^\/api\/games\/([a-z0-9]{8})$/);
+  if (gameMatch) {
+    const id = gameMatch[1];
+    if (req.method === "GET") {
+      const rec = publicGame(getGame(id));
+      if (!rec) {
+        send(res, 404, JSON.stringify({ error: "Game not found" }), TYPES[".json"]);
+        return;
+      }
+      send(res, 200, JSON.stringify(rec), TYPES[".json"]);
+      return;
+    }
+    if (req.method === "PUT") {
+      try {
+        const patch = JSON.parse(await readBody(req) || "{}");
+        const rec = publicGame(saveGame(id, patch));
+        if (!rec) {
+          send(res, 404, JSON.stringify({ error: "Game not found" }), TYPES[".json"]);
+          return;
+        }
+        send(res, 200, JSON.stringify(rec), TYPES[".json"]);
+      } catch (err) {
+        send(res, 400, JSON.stringify({ error: err.message || "Bad game update" }), TYPES[".json"]);
+      }
+      return;
+    }
   }
 
   if (req.method === "POST" && url.pathname === "/api/hint") {
