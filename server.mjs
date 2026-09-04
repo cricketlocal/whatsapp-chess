@@ -10,6 +10,7 @@ const PUBLIC = path.join(__dirname, "public");
 const PORT = Number(process.env.PORT || 3847);
 const MODEL = "grok-4.6";
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const ADMIN_KEY = process.env.CHESS_ADMIN_KEY || "3dc7fe2a-3b3a-4ba0-abb5-b4a30959f0c9";
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -203,6 +204,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/api/hint") {
+    const admin = req.headers["x-chess-admin"];
+    if (admin !== ADMIN_KEY) {
+      send(res, 403, JSON.stringify({ error: "Admin only" }), TYPES[".json"]);
+      return;
+    }
     try {
       const { fen } = JSON.parse(await readBody(req) || "{}");
       if (!fen || typeof fen !== "string") {

@@ -10,6 +10,22 @@ const UNICODE = {
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
+const ADMIN_KEY = "3dc7fe2a-3b3a-4ba0-abb5-b4a30959f0c9";
+const ADMIN_LS = "wa-chess-admin";
+
+function isAdmin() {
+  const q = new URLSearchParams(location.search).get("admin");
+  if (q && q === ADMIN_KEY) {
+    try { localStorage.setItem(ADMIN_LS, ADMIN_KEY); } catch {}
+    return true;
+  }
+  try {
+    return localStorage.getItem(ADMIN_LS) === ADMIN_KEY;
+  } catch {
+    return false;
+  }
+}
+
 const params = new URLSearchParams(location.search);
 let you = params.get("you") === "b" ? "b" : "w";
 let gameId = (params.get("g") || "").toLowerCase();
@@ -172,7 +188,10 @@ function renderStatus() {
   movesEl.innerHTML = pairs.map((p) => `<li>${p}</li>`).join("");
 
   document.getElementById("btn-whatsapp").disabled = false;
-  document.getElementById("btn-hint").disabled = !myTurn();
+  const hintBtn = document.getElementById("btn-hint");
+  hintBtn.hidden = !isAdmin();
+  hintBtn.disabled = !isAdmin() || !myTurn();
+  if (!isAdmin()) hintOut.hidden = true;
 }
 
 function tryMove(from, to, promotion) {
@@ -351,21 +370,102 @@ async function boot() {
   }, 3000);
 }
 
+const PIECE_VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+
+function evaluateWhite(ch) {
+  if (ch.isCheckmate()) return ch.turn() === "w" ? -100000 : 100000;
+  if (ch.isDraw()) return 0;
+  let s = 0;
+  const board = ch.board();
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      const v = PIECE_VAL[p.type] || 0;
+      const centre = 3.5 - Math.abs(c - 3.5) + (3.5 - Math.abs(r - 3.5));
+      const bonus = p.type === "k" ? 0 : centre * (p.type === "p" ? 6 : 4);
+      s += (p.color === "w" ? 1 : -1) * (v + bonus);
+    }
+  }
+  s += (ch.turn() === "w" ? 1 : -1) * ch.moves().length;
+  return s;
+}
+
+function minimax(ch, depth, alpha, beta, whiteToMove) {
+  if (depth === 0 || ch.isGameOver()) return evaluateWhite(ch);
+  const moves = ch.moves();
+  if (whiteToMove) {
+    let best = -Infinity;
+    for (const m of moves) {
+      ch.move(m);
+      best = Math.max(best, minimax(ch, depth - 1, alpha, beta, false));
+      ch.undo();
+      alpha = Math.max(alpha, best);
+      if (beta <= alpha) break;
+    }
+    return best;
+  }
+  let best = Infinity;
+  for (const m of moves) {
+    ch.move(m);
+    best = Math.min(best, minimax(ch, depth - 1, alpha, beta, true));
+    ch.undo();
+    beta = Math.min(beta, best);
+    if (beta <= alpha) break;
+  }
+  return best;
+}
+
+function freeHint(fen) {
+  const ch = new Chess(fen);
+  const white = ch.turn() === "w";
+  const moves = ch.moves();
+  if (!moves.length) return null;
+  const depth = moves.length > 28 ? 2 : 3;
+  let bestMove = moves[0];
+  let bestScore = white ? -Infinity : Infinity;
+  for (const m of moves) {
+    ch.move(m);
+    const s = minimax(ch, depth - 1, -Infinity, Infinity, ch.turn() === "w");
+    ch.undo();
+    if (white ? s > bestScore : s < bestScore) {
+      bestScore = s;
+      bestMove = m;
+    }
+  }
+  return bestMove;
+}
+
 async function askHint() {
+  if (!isAdmin()) return;
+  if (!myTurn()) {
+    hintOut.hidden = false;
+    hintOut.textContent = "Hints are for your turn only.";
+    return;
+  }
   hintOut.hidden = false;
-  hintOut.textContent = "Asking Grok…";
+  hintOut.textContent = "Thinking…";
   try {
     const res = await fetch("/api/hint", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Chess-Admin": ADMIN_KEY,
+      },
       body: JSON.stringify({ fen: game.fen() }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Hint failed");
-    hintOut.textContent = data.hint;
-  } catch (err) {
-    hintOut.textContent = err.message || "Hint server is not running. Start with node server.mjs and set XAI_API_KEY.";
+    if (res.ok) {
+      const data = await res.json();
+      if (data.hint) {
+        hintOut.textContent = data.hint;
+        return;
+      }
+    }
+  } catch {
+    /* fall through to free engine */
   }
+  const san = freeHint(game.fen());
+  hintOut.textContent = san ? `Hint: ${san}` : "No legal moves.";
 }
 
 document.getElementById("btn-whatsapp").addEventListener("click", sendWhatsApp);

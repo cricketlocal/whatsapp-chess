@@ -12,3 +12,5 @@ services:
         value: production
       - key: XAI_API_KEY
         sync: false
+      - key: CHESS_ADMIN_KEY
+        sync: false
