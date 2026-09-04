@@ -55,12 +55,20 @@ function colourName(c) {
   return c === "w" ? "White" : "Black";
 }
 
+function lastSan() {
+  const hist = game.history();
+  return hist[hist.length - 1] || "";
+}
+
 function writeUrl() {
   const next = new URL(location.href);
   next.searchParams.set("you", you);
   next.searchParams.set("fen", game.fen());
   if (lastMove) next.searchParams.set("last", lastMove);
   else next.searchParams.delete("last");
+  const san = lastSan();
+  if (san) next.searchParams.set("san", san);
+  else next.searchParams.delete("san");
   history.replaceState(null, "", next);
 }
 
@@ -69,6 +77,10 @@ function opponentUrl() {
   u.searchParams.set("you", you === "w" ? "b" : "w");
   u.searchParams.set("fen", game.fen());
   if (lastMove) u.searchParams.set("last", lastMove);
+  else u.searchParams.delete("last");
+  const san = lastSan();
+  if (san) u.searchParams.set("san", san);
+  else u.searchParams.delete("san");
   return u.toString();
 }
 

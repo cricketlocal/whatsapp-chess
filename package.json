@@ -7,6 +7,9 @@
   "scripts": {
     "start": "node server.mjs"
   },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  },
   "engines": {
     "node": ">=18"
   }
