@@ -188,10 +188,6 @@ function renderStatus() {
   movesEl.innerHTML = pairs.map((p) => `<li>${p}</li>`).join("");
 
   document.getElementById("btn-whatsapp").disabled = false;
-  const hintBtn = document.getElementById("btn-hint");
-  hintBtn.hidden = !isAdmin();
-  hintBtn.disabled = !isAdmin() || !myTurn();
-  if (!isAdmin()) hintOut.hidden = true;
 }
 
 function tryMove(from, to, promotion) {
@@ -204,6 +200,7 @@ function tryMove(from, to, promotion) {
   selected = null;
   pendingPromo = null;
   promoEl.hidden = true;
+  hintOut.hidden = true;
   writeUrl();
   renderBoard();
   renderStatus();
@@ -437,7 +434,6 @@ function freeHint(fen) {
 }
 
 async function askHint() {
-  if (!isAdmin()) return;
   if (!myTurn()) {
     hintOut.hidden = false;
     hintOut.textContent = "Hints are for your turn only.";
@@ -471,7 +467,22 @@ async function askHint() {
 document.getElementById("btn-whatsapp").addEventListener("click", sendWhatsApp);
 document.getElementById("btn-copy").addEventListener("click", copyLink);
 document.getElementById("btn-new").addEventListener("click", newGame);
-document.getElementById("btn-hint").addEventListener("click", askHint);
+
+(function secretHintOnTitle() {
+  const title = document.getElementById("title");
+  if (!title) return;
+  let lastTap = 0;
+  title.addEventListener("pointerup", (e) => {
+    const now = Date.now();
+    if (now - lastTap < 400) {
+      e.preventDefault();
+      lastTap = 0;
+      askHint();
+    } else {
+      lastTap = now;
+    }
+  });
+})();
 
 renderCoords();
 renderBoard();

@@ -29,6 +29,10 @@ html, body {
   margin: 0;
   font-size: 1.35rem;
   color: var(--green);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  cursor: default;
 }
 .tag {
   margin: 0.25rem 0 0.9rem;
