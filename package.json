@@ -1,0 +1,13 @@
+{
+  "name": "whatsapp-chess",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Two-player chess played by sending a turn link on WhatsApp",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

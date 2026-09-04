@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1a3d2b">
+  <title>WhatsApp Chess</title>
+  <meta name="description" content="Play chess with a friend by sending each turn on WhatsApp.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <h1>WhatsApp Chess</h1>
+      <p class="tag">Two players. One link per turn. Send it on WhatsApp.</p>
+    </header>
+
+    <section class="status-card" id="status-card">
+      <p class="you-line" id="you-line">You are White</p>
+      <p class="turn-line" id="turn-line">Your move</p>
+      <p class="last-line" id="last-line"></p>
+    </section>
+
+    <div class="board-wrap">
+      <div class="files top-files" id="files-top" aria-hidden="true"></div>
+      <div class="board-row">
+        <div class="ranks" id="ranks-left" aria-hidden="true"></div>
+        <div class="board" id="board" role="grid" aria-label="Chess board"></div>
+        <div class="ranks" id="ranks-right" aria-hidden="true"></div>
+      </div>
+      <div class="files" id="files-bottom" aria-hidden="true"></div>
+    </div>
+
+    <div class="promo" id="promo" hidden>
+      <p>Promote pawn to</p>
+      <div class="promo-btns" id="promo-btns"></div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-wa" id="btn-whatsapp">Send this turn on WhatsApp</button>
+      <button type="button" class="btn btn-ghost" id="btn-copy">Copy link</button>
+      <button type="button" class="btn btn-ghost" id="btn-hint">Ask Grok for a hint</button>
+      <button type="button" class="btn btn-ghost" id="btn-new">New game (you White)</button>
+    </div>
+
+    <p class="hint-out" id="hint-out" hidden></p>
+    <ol class="moves" id="moves"></ol>
+
+    <p class="help">
+      After you move, tap <strong>Send this turn on WhatsApp</strong>.
+      Your opponent opens the link, moves, and sends it back.
+      No WhatsApp bot — the link <em>is</em> the game.
+    </p>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
