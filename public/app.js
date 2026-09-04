@@ -72,16 +72,19 @@ function opponentUrl() {
   return u.toString();
 }
 
-function shareText() {
+function moveMessage() {
   const hist = game.history();
-  const san = hist[hist.length - 1] || "Game started";
+  const san = hist[hist.length - 1];
   if (game.isCheckmate()) {
-    return `Chess — ${san}# Checkmate. ${colourName(you)} wins.\n${opponentUrl()}`;
+    return `Checkmate. I played ${san}. ${colourName(you)} wins.`;
   }
   if (game.isDraw()) {
-    return `Chess — ${san}. Draw.\n${opponentUrl()}`;
+    return `Draw. Last move ${san}.`;
   }
-  return `Chess — I played ${san}. Your turn (${colourName(game.turn())}).\n${opponentUrl()}`;
+  if (!san) {
+    return `Your move. You are ${colourName(game.turn())}.`;
+  }
+  return `I made my move: ${san}. Your turn.`;
 }
 
 function renderCoords() {
@@ -225,9 +228,23 @@ function onSquare(sq) {
   }
 }
 
-function sendWhatsApp() {
-  const url = "https://wa.me/?text=" + encodeURIComponent(shareText());
-  window.open(url, "_blank", "noopener");
+async function sendWhatsApp() {
+  const text = moveMessage();
+  const playUrl = opponentUrl();
+  // Phone share sheet attaches the play link as a preview card, not in the message.
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "WhatsApp Chess", text, url: playUrl });
+      return;
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+    }
+  }
+  window.open(
+    "https://wa.me/?text=" + encodeURIComponent(text + " " + playUrl),
+    "_blank",
+    "noopener"
+  );
 }
 
 async function copyLink() {
