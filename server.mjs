@@ -109,7 +109,7 @@ async function hint(fen) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
-  if (req.method === "GET" && (url.pathname === "/board.png" || url.pathname === "/board.svg")) {
+  if ((req.method === "GET" || req.method === "HEAD") && (url.pathname === "/board.png" || url.pathname === "/board.svg")) {
     try {
       const opts = boardOpts(url);
       if (url.pathname === "/board.svg") {

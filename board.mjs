@@ -112,7 +112,7 @@ export function boardPng(opts) {
   const svg = boardSvg(opts);
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: 900 },
-    font: { loadSystemFonts: false },
+    font: { loadSystemFonts: true },
   });
   return resvg.render().asPng();
 }
