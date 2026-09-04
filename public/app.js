@@ -178,6 +178,7 @@ function renderStatus() {
 function tryMove(from, to, promotion) {
   const spec = { from, to };
   if (promotion) spec.promotion = promotion;
+  else if (needsPromotion(from, to)) spec.promotion = "q";
   const move = game.move(spec);
   if (!move) return false;
   lastMove = from + to + (move.promotion || "");
@@ -211,16 +212,25 @@ function showPromo(from, to) {
   kinds.forEach((k) => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "piece piece-" + colour;
+    b.className = "promo-choice piece-" + colour;
+    b.setAttribute("aria-label", "Promote to " + k.t);
     b.textContent = k.g;
-    b.addEventListener("click", () => tryMove(from, to, k.t));
+    b.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      tryMove(from, to, k.t);
+    });
     promoBtns.appendChild(b);
   });
   promoEl.hidden = false;
 }
 
 function onSquare(sq) {
-  if (!myTurn() || pendingPromo) return;
+  if (pendingPromo) {
+    if (sq === pendingPromo.to) tryMove(pendingPromo.from, pendingPromo.to, "q");
+    return;
+  }
+  if (!myTurn()) return;
   const piece = game.get(sq);
   if (selected) {
     if (sq === selected) {
