@@ -89,11 +89,12 @@ export function boardSvg({ fen, last = "", flip = false, caption = "" } = {}) {
   }
 
   let body = "";
-  body += `<image href="${GREY}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`;
-  body += `<rect width="${width}" height="${CAP + 8}" fill="rgba(255,255,255,0.35)"/>`;
+  body += `<image href="${MARBLE}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`;
+  body += `<rect width="${width}" height="${CAP + 8}" fill="rgba(255,255,255,0.42)"/>`;
   body += `<text x="${width / 2}" y="38" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" fill="${INK}">${xml(caption || "WhatsApp Chess")}</text>`;
-  body += `<rect x="${ox - 6}" y="${oy - 6}" width="${board + 12}" height="${board + 12}" fill="none" stroke="#c9a36a" stroke-width="3"/>`;
-  body += `<rect x="${ox - 2}" y="${oy - 2}" width="${board + 4}" height="${board + 4}" fill="none" stroke="#5c6166" stroke-width="2"/>`;
+  body += `<rect x="${ox - 7}" y="${oy - 7}" width="${board + 14}" height="${board + 14}" fill="none" stroke="#f1e0a8" stroke-width="2"/>`;
+  body += `<rect x="${ox - 5}" y="${oy - 5}" width="${board + 10}" height="${board + 10}" fill="none" stroke="#d4af37" stroke-width="3"/>`;
+  body += `<rect x="${ox - 2}" y="${oy - 2}" width="${board + 4}" height="${board + 4}" fill="none" stroke="#8a6a28" stroke-width="2"/>`;
   body += `<image href="${MARBLE}" x="${ox}" y="${oy}" width="${board}" height="${board}" preserveAspectRatio="xMidYMid slice" clip-path="url(#board-clip)"/>`;
 
   for (let row = 0; row < 8; row++) {
@@ -113,7 +114,8 @@ export function boardSvg({ fen, last = "", flip = false, caption = "" } = {}) {
       if (isLast) {
         body += `<rect x="${x}" y="${y}" width="${SQ}" height="${SQ}" fill="rgba(232,176,60,0.38)"/>`;
       }
-      body += `<rect x="${x}" y="${y}" width="${SQ}" height="${SQ}" fill="none" stroke="rgba(40,22,8,0.18)" stroke-width="1"/>`;
+      body += `<rect x="${x}" y="${y}" width="${SQ}" height="${SQ}" fill="none" stroke="#d4af37" stroke-width="1.25"/>`;
+      body += `<rect x="${x + 1.2}" y="${y + 1.2}" width="${SQ - 2.4}" height="${SQ - 2.4}" fill="none" stroke="#8a6a28" stroke-opacity="0.55" stroke-width="0.8"/>`;
     }
   }
 

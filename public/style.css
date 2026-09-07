@@ -11,13 +11,20 @@
   --legal: rgba(40, 44, 48, 0.38);
   --wa: #25d366;
   --frame: #6d7278;
+  --gold: #d4af37;
+  --gold-deep: #8a6a28;
+  --gold-light: #f1e0a8;
 }
 
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
   min-height: 100%;
-  background: var(--cream);
+  background-color: var(--cream);
+  background-image: url("textures/marble.jpg");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
   color: var(--ink);
   font-family: "Segoe UI", system-ui, sans-serif;
 }
@@ -41,11 +48,12 @@ html, body {
   font-size: 0.92rem;
 }
 .status-card {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.82);
   border-radius: 0.85rem;
   padding: 0.85rem 1rem;
   margin-bottom: 0.85rem;
   box-shadow: 0 6px 18px rgba(20, 32, 24, 0.08);
+  border: 1px solid var(--gold);
 }
 .you-line { margin: 0; font-weight: 800; letter-spacing: 0.01em; }
 .turn-line { margin: 0.2rem 0 0; color: var(--green-2); font-weight: 700; }
@@ -53,16 +61,17 @@ html, body {
 
 .board-wrap {
   user-select: none;
-  background-color: var(--frame);
-  background-image: url("textures/grey-marble.jpg");
+  background-color: var(--cream);
+  background-image: url("textures/marble.jpg");
   background-size: cover;
   background-position: center;
   padding: 0.2rem 0.15rem 0.35rem;
   border-radius: 0.7rem;
   box-shadow:
     0 14px 32px rgba(40, 44, 48, 0.32),
-    inset 0 0 0 2px #c9a36a,
-    inset 0 0 0 4px #5c6166;
+    inset 0 0 0 2px var(--gold-light),
+    inset 0 0 0 4px var(--gold),
+    inset 0 0 0 6px var(--gold-deep);
 }
 .board-row { display: flex; align-items: stretch; }
 .board {
@@ -76,7 +85,7 @@ html, body {
   background-color: var(--light);
   background-image: url("textures/marble.jpg");
   background-size: 100% 100%;
-  box-shadow: inset 0 0 0 1px rgba(40, 22, 8, 0.35);
+  box-shadow: inset 0 0 0 2px var(--gold);
 }
 .sq {
   display: flex;
@@ -91,6 +100,9 @@ html, body {
   appearance: none;
   -webkit-appearance: none;
   background-color: transparent;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-light),
+    inset 0 0 0 2px var(--gold-deep);
 }
 .sq.light { background: transparent; }
 .sq.dark {
@@ -98,7 +110,12 @@ html, body {
   background-image: url("textures/grey-marble.jpg");
   background-size: 400% 400%;
 }
-.sq.selected { box-shadow: inset 0 0 0 3px var(--sel); z-index: 1; }
+.sq.selected {
+  box-shadow:
+    inset 0 0 0 1px var(--gold-light),
+    inset 0 0 0 3px var(--sel);
+  z-index: 1;
+}
 .sq.last::before {
   content: "";
   position: absolute;
@@ -154,10 +171,11 @@ html, body {
 
 .promo {
   margin: 0.75rem 0;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.82);
   border-radius: 0.85rem;
   padding: 0.75rem;
   text-align: center;
+  border: 1px solid var(--gold);
 }
 .promo p { margin: 0 0 0.5rem; font-weight: 700; }
 .promo-btns { display: flex; gap: 0.4rem; justify-content: center; }
@@ -166,7 +184,7 @@ html, body {
   pointer-events: auto;
   width: 3.4rem;
   height: 3.4rem;
-  border: 2px solid var(--green);
+  border: 2px solid var(--gold);
   background: var(--cream);
   background-image: url("textures/marble.jpg");
   background-size: cover;
@@ -205,11 +223,11 @@ html, body {
 }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-wa { background: var(--wa); color: #083; color: #073b1d; }
-.btn-ghost { background: #fff; color: var(--green); border: 1px solid #d7d0c0; }
+.btn-ghost { background: rgba(255, 255, 255, 0.85); color: var(--green); border: 1px solid var(--gold); }
 .hint-out {
   margin: 0.75rem 0 0;
-  background: #fff;
-  border-left: 4px solid var(--sel);
+  background: rgba(255, 255, 255, 0.85);
+  border-left: 4px solid var(--gold);
   padding: 0.7rem 0.85rem;
   border-radius: 0 0.6rem 0.6rem 0;
   font-size: 0.92rem;
