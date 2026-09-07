@@ -10,7 +10,7 @@ const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const SQ = 96;
 const FRAME = 44;
 const CAP = 56;
-const INK = "#f3e6c8";
+const INK = "#2c3238";
 const PIECES = {};
 
 function dataUri(file, mime) {
@@ -18,7 +18,7 @@ function dataUri(file, mime) {
 }
 
 const MARBLE = dataUri(path.join(TEX_DIR, "marble.jpg"), "image/jpeg");
-const WALNUT = dataUri(path.join(TEX_DIR, "walnut.jpg"), "image/jpeg");
+const GREY = dataUri(path.join(TEX_DIR, "grey-marble.jpg"), "image/jpeg");
 for (const name of ["wK", "wQ", "wR", "wB", "wN", "wP", "bK", "bQ", "bR", "bB", "bN", "bP"]) {
   PIECES[name] = dataUri(path.join(PIECE_DIR, name + ".png"), "image/png");
 }
@@ -89,11 +89,11 @@ export function boardSvg({ fen, last = "", flip = false, caption = "" } = {}) {
   }
 
   let body = "";
-  body += `<image href="${WALNUT}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`;
-  body += `<rect width="${width}" height="${CAP + 8}" fill="rgba(28,14,6,0.55)"/>`;
+  body += `<image href="${GREY}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`;
+  body += `<rect width="${width}" height="${CAP + 8}" fill="rgba(255,255,255,0.35)"/>`;
   body += `<text x="${width / 2}" y="38" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" fill="${INK}">${xml(caption || "WhatsApp Chess")}</text>`;
   body += `<rect x="${ox - 6}" y="${oy - 6}" width="${board + 12}" height="${board + 12}" fill="none" stroke="#c9a36a" stroke-width="3"/>`;
-  body += `<rect x="${ox - 2}" y="${oy - 2}" width="${board + 4}" height="${board + 4}" fill="none" stroke="#3a2210" stroke-width="2"/>`;
+  body += `<rect x="${ox - 2}" y="${oy - 2}" width="${board + 4}" height="${board + 4}" fill="none" stroke="#5c6166" stroke-width="2"/>`;
   body += `<image href="${MARBLE}" x="${ox}" y="${oy}" width="${board}" height="${board}" preserveAspectRatio="xMidYMid slice" clip-path="url(#board-clip)"/>`;
 
   for (let row = 0; row < 8; row++) {
@@ -105,7 +105,7 @@ export function boardSvg({ fen, last = "", flip = false, caption = "" } = {}) {
         const tex = 384;
         const offx = (col * 47 + row * 19) % (tex - SQ);
         const offy = (row * 53 + col * 29) % (tex - SQ);
-        body += `<image href="${WALNUT}" x="${x - offx}" y="${y - offy}" width="${tex}" height="${tex}" preserveAspectRatio="none" clip-path="url(#s${row}${col})"/>`;
+        body += `<image href="${GREY}" x="${x - offx}" y="${y - offy}" width="${tex}" height="${tex}" preserveAspectRatio="none" clip-path="url(#s${row}${col})"/>`;
       }
       const isLast =
         (lastFrom && lastFrom.row === row && lastFrom.col === col) ||

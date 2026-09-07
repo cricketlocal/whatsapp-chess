@@ -15,18 +15,18 @@ PIECES_OUT = ROOT / "public" / "pieces-carved"
 TEX_OUT = ROOT / "public" / "textures"
 
 MAP = {
-    "wK": "1.jpg",
-    "bK": "2.jpg",
-    "wR": "5.jpg",
+    "wK": "19.jpg",
+    "bK": "21.jpg",
+    "wR": "23.jpg",
     "wN": "6.jpg",
-    "wP": "7.jpg",
-    "wQ": "8.jpg",
-    "wB": "9.jpg",
-    "bN": "11.jpg",
-    "bB": "12.jpg",
-    "bP": "13.jpg",
-    "bR": "14.jpg",
-    "bQ": "15.jpg",
+    "wP": "27.jpg",
+    "wQ": "17.jpg",
+    "wB": "20.jpg",
+    "bN": "24.jpg",
+    "bB": "22.jpg",
+    "bP": "26.jpg",
+    "bR": "25.jpg",
+    "bQ": "18.jpg",
 }
 
 
@@ -136,13 +136,13 @@ def save_textures() -> None:
     TEX_OUT.mkdir(parents=True, exist_ok=True)
     marble = Image.open(SRC / "4.jpg").convert("RGB").resize((768, 768), Image.Resampling.LANCZOS)
     marble.save(TEX_OUT / "marble.jpg", quality=88, optimize=True)
-    walnut = Image.open(SRC / "10.jpg").convert("RGB").resize((768, 768), Image.Resampling.LANCZOS)
-    walnut.save(TEX_OUT / "walnut.jpg", quality=88, optimize=True)
+    grey = Image.open(SRC / "16.jpg").convert("RGB").resize((768, 768), Image.Resampling.LANCZOS)
+    grey.save(TEX_OUT / "grey-marble.jpg", quality=88, optimize=True)
 
 
 def main() -> None:
     save_textures()
-    print("textures", TEX_OUT / "marble.jpg", TEX_OUT / "walnut.jpg")
+    print("textures", TEX_OUT / "marble.jpg", TEX_OUT / "grey-marble.jpg")
     PIECES_OUT.mkdir(parents=True, exist_ok=True)
     for name, src in MAP.items():
         path = SRC / src
