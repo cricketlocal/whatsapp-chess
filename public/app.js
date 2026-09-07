@@ -1,12 +1,21 @@
 import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
 
-// chess.js uses color "w" / "b". Text-presentation (U+FE0E) so Windows
-// does not hide black pieces as same-colour emoji.
-const TP = "\uFE0E";
-const UNICODE = {
-  wK: "♔" + TP, wQ: "♕" + TP, wR: "♖" + TP, wB: "♗" + TP, wN: "♘" + TP, wP: "♙" + TP,
-  bK: "♚" + TP, bQ: "♛" + TP, bR: "♜" + TP, bB: "♝" + TP, bN: "♞" + TP, bP: "♟" + TP,
+const PIECE_SRC = {
+  wK: "pieces-carved/wK.png", wQ: "pieces-carved/wQ.png", wR: "pieces-carved/wR.png",
+  wB: "pieces-carved/wB.png", wN: "pieces-carved/wN.png", wP: "pieces-carved/wP.png",
+  bK: "pieces-carved/bK.png", bQ: "pieces-carved/bQ.png", bR: "pieces-carved/bR.png",
+  bB: "pieces-carved/bB.png", bN: "pieces-carved/bN.png", bP: "pieces-carved/bP.png",
 };
+const PIECE_NAME = { k: "king", q: "queen", r: "rook", b: "bishop", n: "knight", p: "pawn" };
+
+function pieceImg(code, className) {
+  const img = document.createElement("img");
+  img.className = className || "piece";
+  img.src = PIECE_SRC[code];
+  img.alt = "";
+  img.draggable = false;
+  return img;
+}
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -149,11 +158,14 @@ function renderBoard() {
         el.classList.add("legal");
         if (piece) el.classList.add("capture");
       }
+      if (!isLight) {
+        el.style.backgroundPosition = `${(fileIndex / 7) * 100}% ${(rankIndex / 7) * 100}%`;
+      }
       if (piece) {
-        const span = document.createElement("span");
-        span.className = "piece piece-" + piece.color;
-        span.textContent = UNICODE[piece.color + piece.type.toUpperCase()] || "";
-        el.appendChild(span);
+        const code = piece.color + piece.type.toUpperCase();
+        const img = pieceImg(code);
+        img.alt = colourName(piece.color) + " " + (PIECE_NAME[piece.type] || piece.type);
+        el.appendChild(img);
       }
       el.addEventListener("click", () => onSquare(sq));
       boardEl.appendChild(el);
@@ -218,23 +230,18 @@ function needsPromotion(from, to) {
 function showPromo(from, to) {
   pendingPromo = { from, to };
   const colour = game.get(from).color;
-  const kinds = [
-    { t: "q", g: UNICODE[colour + "Q"] },
-    { t: "r", g: UNICODE[colour + "R"] },
-    { t: "b", g: UNICODE[colour + "B"] },
-    { t: "n", g: UNICODE[colour + "N"] },
-  ];
+  const kinds = ["q", "r", "b", "n"];
   promoBtns.innerHTML = "";
-  kinds.forEach((k) => {
+  kinds.forEach((t) => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "promo-choice piece-" + colour;
-    b.setAttribute("aria-label", "Promote to " + k.t);
-    b.textContent = k.g;
+    b.className = "promo-choice";
+    b.setAttribute("aria-label", "Promote to " + (PIECE_NAME[t] || t));
+    b.appendChild(pieceImg(colour + t.toUpperCase()));
     b.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      tryMove(from, to, k.t);
+      tryMove(from, to, t);
     });
     promoBtns.appendChild(b);
   });

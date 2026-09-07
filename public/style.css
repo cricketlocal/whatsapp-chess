@@ -5,11 +5,12 @@
   --ink: #142018;
   --muted: #5b6b60;
   --light: #eee8d5;
-  --dark: #769656;
+  --dark: #5a3a22;
   --sel: #f6c945;
-  --last: rgba(246, 201, 69, 0.45);
-  --legal: rgba(26, 61, 43, 0.28);
+  --last: rgba(232, 176, 60, 0.42);
+  --legal: rgba(20, 28, 18, 0.38);
   --wa: #25d366;
+  --frame: #4a2c16;
 }
 
 * { box-sizing: border-box; }
@@ -50,7 +51,19 @@ html, body {
 .turn-line { margin: 0.2rem 0 0; color: var(--green-2); font-weight: 700; }
 .last-line { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
 
-.board-wrap { user-select: none; }
+.board-wrap {
+  user-select: none;
+  background-color: var(--frame);
+  background-image: url("textures/walnut.jpg");
+  background-size: cover;
+  background-position: center;
+  padding: 0.2rem 0.15rem 0.35rem;
+  border-radius: 0.7rem;
+  box-shadow:
+    0 14px 32px rgba(40, 22, 8, 0.38),
+    inset 0 0 0 2px #c9a36a,
+    inset 0 0 0 4px #5a3418;
+}
 .board-row { display: flex; align-items: stretch; }
 .board {
   flex: 1;
@@ -58,23 +71,41 @@ html, body {
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
   aspect-ratio: 1;
-  border-radius: 0.4rem;
+  border-radius: 2px;
   overflow: hidden;
-  box-shadow: 0 10px 28px rgba(20, 32, 24, 0.18);
+  background-color: var(--light);
+  background-image: url("textures/marble.jpg");
+  background-size: 100% 100%;
+  box-shadow: inset 0 0 0 1px rgba(40, 22, 8, 0.35);
 }
 .sq {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  font-size: clamp(1.5rem, 8vw, 2.35rem);
+  padding: 0 2% 1%;
   line-height: 1;
   cursor: pointer;
   position: relative;
+  border: 0;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: transparent;
 }
-.sq.light { background: var(--light); }
-.sq.dark { background: var(--dark); }
-.sq.selected { box-shadow: inset 0 0 0 3px var(--sel); }
-.sq.last { background: var(--last); }
+.sq.light { background: transparent; }
+.sq.dark {
+  background-color: var(--dark);
+  background-image: url("textures/walnut.jpg");
+  background-size: 400% 400%;
+}
+.sq.selected { box-shadow: inset 0 0 0 3px var(--sel); z-index: 1; }
+.sq.last::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--last);
+  pointer-events: none;
+}
 .sq.legal::after {
   content: "";
   width: 28%;
@@ -82,32 +113,36 @@ html, body {
   border-radius: 50%;
   background: var(--legal);
   position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
 }
 .sq.legal.capture::after {
   width: auto; height: auto;
   inset: 8%;
+  top: auto; left: auto;
+  transform: none;
   background: transparent;
   border: 3px solid var(--legal);
   border-radius: 50%;
 }
 .piece {
   pointer-events: none;
-  font-family: "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols 2", serif;
-  line-height: 1;
-}
-.piece-w {
-  color: #f7f3e8;
-  filter: drop-shadow(0 0 1px #142018) drop-shadow(0 1px 0 #1a1a1a);
-}
-.piece-b {
-  color: #111814;
-  filter: drop-shadow(0 0 1.5px #f4efe4) drop-shadow(0 1px 0 #f4efe4);
+  width: 92%;
+  height: 92%;
+  object-fit: contain;
+  object-position: bottom center;
+  filter: drop-shadow(0 2px 3px rgba(20, 12, 4, 0.45));
+  z-index: 2;
+  position: relative;
 }
 .files, .ranks {
   display: flex;
-  color: var(--muted);
+  color: #f3e6c8;
   font-size: 0.7rem;
   font-weight: 700;
+  text-shadow: 0 1px 1px rgba(20, 10, 0, 0.55);
 }
 .files { justify-content: space-around; padding: 0.2rem 1.1rem; }
 .ranks {
@@ -129,14 +164,25 @@ html, body {
 .promo-btns button,
 .promo-choice {
   pointer-events: auto;
-  font-family: "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols 2", serif;
-  font-size: 1.8rem;
-  width: 3.25rem;
-  height: 3.25rem;
+  width: 3.4rem;
+  height: 3.4rem;
   border: 2px solid var(--green);
   background: var(--cream);
+  background-image: url("textures/marble.jpg");
+  background-size: cover;
   border-radius: 0.5rem;
   cursor: pointer;
+  padding: 0.15rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.promo-choice img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  pointer-events: none;
 }
 .promo-choice:hover,
 .promo-choice:focus {

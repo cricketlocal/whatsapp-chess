@@ -4,21 +4,23 @@ import { fileURLToPath } from "node:url";
 import { Resvg } from "@resvg/resvg-js";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const PIECE_DIR = path.join(DIR, "pieces");
+const PIECE_DIR = path.join(DIR, "public", "pieces-carved");
+const TEX_DIR = path.join(DIR, "public", "textures");
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-const LIGHT = "#eee8d5";
-const DARK = "#769656";
-const LAST = "#e8c547";
-const INK = "#142018";
-const CREAM = "#f4efe4";
 const SQ = 96;
-const PAD = 28;
-const CAP = 64;
+const FRAME = 44;
+const CAP = 56;
+const INK = "#f3e6c8";
 const PIECES = {};
 
+function dataUri(file, mime) {
+  return `data:${mime};base64,${fs.readFileSync(file).toString("base64")}`;
+}
+
+const MARBLE = dataUri(path.join(TEX_DIR, "marble.jpg"), "image/jpeg");
+const WALNUT = dataUri(path.join(TEX_DIR, "walnut.jpg"), "image/jpeg");
 for (const name of ["wK", "wQ", "wR", "wB", "wN", "wP", "bK", "bQ", "bR", "bB", "bN", "bP"]) {
-  const raw = fs.readFileSync(path.join(PIECE_DIR, name + ".svg"), "utf8");
-  PIECES[name] = raw.replace(/<\?xml[^>]*>/i, "").replace(/<svg[^>]*>/i, "").replace(/<\/svg>/i, "").trim();
+  PIECES[name] = dataUri(path.join(PIECE_DIR, name + ".png"), "image/png");
 }
 
 function xml(s) {
@@ -67,45 +69,74 @@ export function boardSvg({ fen, last = "", flip = false, caption = "" } = {}) {
   const lastFrom = sqToCell(last.slice(0, 2), flip);
   const lastTo = sqToCell(last.slice(2, 4), flip);
   const board = 8 * SQ;
-  const width = PAD + board + PAD;
-  const height = CAP + PAD + board + PAD;
+  const width = FRAME + board + FRAME;
+  const height = CAP + FRAME + board + FRAME;
   const files = flip ? "hgfedcba" : "abcdefgh";
   const ranks = flip ? "12345678" : "87654321";
-  const ox = PAD;
-  const oy = CAP + PAD;
-  const scale = (SQ * 0.86) / 45;
-  const inset = (SQ - 45 * scale) / 2;
+  const ox = FRAME;
+  const oy = CAP + FRAME;
+  const inset = SQ * 0.04;
+  const pw = SQ * 0.92;
+
+  let defs = "";
+  defs += `<clipPath id="board-clip"><rect x="${ox}" y="${oy}" width="${board}" height="${board}"/></clipPath>`;
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const x = ox + col * SQ;
+      const y = oy + row * SQ;
+      defs += `<clipPath id="s${row}${col}"><rect x="${x}" y="${y}" width="${SQ}" height="${SQ}"/></clipPath>`;
+    }
+  }
 
   let body = "";
-  body += `<rect width="${width}" height="${height}" fill="${CREAM}"/>`;
-  body += `<text x="${width / 2}" y="42" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="${INK}">${xml(caption || "WhatsApp Chess")}</text>`;
+  body += `<image href="${WALNUT}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`;
+  body += `<rect width="${width}" height="${CAP + 8}" fill="rgba(28,14,6,0.55)"/>`;
+  body += `<text x="${width / 2}" y="38" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" fill="${INK}">${xml(caption || "WhatsApp Chess")}</text>`;
+  body += `<rect x="${ox - 6}" y="${oy - 6}" width="${board + 12}" height="${board + 12}" fill="none" stroke="#c9a36a" stroke-width="3"/>`;
+  body += `<rect x="${ox - 2}" y="${oy - 2}" width="${board + 4}" height="${board + 4}" fill="none" stroke="#3a2210" stroke-width="2"/>`;
+  body += `<image href="${MARBLE}" x="${ox}" y="${oy}" width="${board}" height="${board}" preserveAspectRatio="xMidYMid slice" clip-path="url(#board-clip)"/>`;
 
   for (let row = 0; row < 8; row++) {
     for (let col = 0; col < 8; col++) {
       const x = ox + col * SQ;
       const y = oy + row * SQ;
+      const dark = (row + col) % 2 === 1;
+      if (dark) {
+        const tex = 384;
+        const offx = (col * 47 + row * 19) % (tex - SQ);
+        const offy = (row * 53 + col * 29) % (tex - SQ);
+        body += `<image href="${WALNUT}" x="${x - offx}" y="${y - offy}" width="${tex}" height="${tex}" preserveAspectRatio="none" clip-path="url(#s${row}${col})"/>`;
+      }
       const isLast =
         (lastFrom && lastFrom.row === row && lastFrom.col === col) ||
         (lastTo && lastTo.row === row && lastTo.col === col);
-      const dark = (row + col) % 2 === 1;
-      const fill = isLast ? LAST : dark ? DARK : LIGHT;
-      body += `<rect x="${x}" y="${y}" width="${SQ}" height="${SQ}" fill="${fill}"/>`;
+      if (isLast) {
+        body += `<rect x="${x}" y="${y}" width="${SQ}" height="${SQ}" fill="rgba(232,176,60,0.38)"/>`;
+      }
+      body += `<rect x="${x}" y="${y}" width="${SQ}" height="${SQ}" fill="none" stroke="rgba(40,22,8,0.18)" stroke-width="1"/>`;
+    }
+  }
+
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const x = ox + col * SQ;
+      const y = oy + row * SQ;
       const srcRow = flip ? 7 - row : row;
       const srcCol = flip ? 7 - col : col;
       const piece = grid[srcRow][srcCol];
       if (piece && PIECES[piece]) {
-        body += `<g transform="translate(${x + inset},${y + inset}) scale(${scale.toFixed(4)})">${PIECES[piece]}</g>`;
+        body += `<image href="${PIECES[piece]}" x="${x + inset}" y="${y + inset}" width="${pw}" height="${pw}" preserveAspectRatio="xMidYMax meet"/>`;
       }
     }
   }
 
   for (let i = 0; i < 8; i++) {
     const cx = ox + i * SQ + SQ / 2;
-    body += `<text x="${cx}" y="${oy + board + 20}" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14" fill="${INK}">${files[i]}</text>`;
-    body += `<text x="${ox - 10}" y="${oy + i * SQ + SQ / 2 + 5}" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14" fill="${INK}">${ranks[i]}</text>`;
+    body += `<text x="${cx}" y="${oy + board + 28}" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" fill="${INK}">${files[i]}</text>`;
+    body += `<text x="${ox - 16}" y="${oy + i * SQ + SQ / 2 + 5}" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" fill="${INK}">${ranks[i]}</text>`;
   }
 
-  return `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${body}</svg>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs>${defs}</defs>${body}</svg>`;
 }
 
 export function boardPng(opts) {

@@ -18,6 +18,8 @@ const TYPES = {
   ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
   ".json": "application/json; charset=utf-8",
 };
 
@@ -59,7 +61,7 @@ function injectShareMeta(html, { pageUrl, imageUrl, title, description }) {
     `<meta property="og:image:secure_url" content="${esc(imageUrl)}">`,
     `<meta property="og:image:type" content="image/png">`,
     `<meta property="og:image:width" content="900">`,
-    `<meta property="og:image:height" content="1020">`,
+    `<meta property="og:image:height" content="968">`,
     `<meta name="twitter:card" content="summary_large_image">`,
     `<meta name="twitter:image" content="${esc(imageUrl)}">`,
   ].join("\n  ");
