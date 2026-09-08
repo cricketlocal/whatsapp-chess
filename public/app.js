@@ -315,8 +315,9 @@ function animateMove(move) {
       return;
     }
 
-    const slideDelay = isCapture ? 90 : 16;
-    const duration = isCapture ? 300 : 320;
+    // 50% slower than the original 300/320ms slide
+    const slideDelay = isCapture ? 135 : 24;
+    const duration = isCapture ? 450 : 480;
     let done = false;
     const finish = () => {
       if (done) return;
