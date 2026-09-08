@@ -612,22 +612,107 @@ function newGame() {
   location.href = location.pathname + "?you=w";
 }
 
-function applyRecord(rec) {
-  if (!rec) return;
-  gameId = rec.id;
-  if (Array.isArray(rec.moves) && rec.moves.length) {
-    game.reset();
-    for (const san of rec.moves) {
-      if (!game.move(san)) break;
-    }
-  } else if (rec.fen) {
-    game.load(rec.fen);
+let lastSeenMoveCount = -1;
+
+function loadMovesQuiet(moves) {
+  game.reset();
+  for (const san of moves) {
+    if (!game.move(san)) break;
   }
-  lastMove = rec.last || "";
+}
+
+/**
+ * Replay the last ply so the opponent also sees slide / TNT / explode.
+ * Loads all moves except the last, renders, animates that ply, then commits.
+ */
+async function replayIncomingMove(moves, lastUci) {
+  if (!moves.length) return false;
+  const prior = moves.slice(0, -1);
+  loadMovesQuiet(prior);
+  lastMove = lastUci || "";
   writeUrl();
   renderCoords();
   renderBoard();
   renderStatus();
+
+  const lastSan = moves[moves.length - 1];
+  const verbose = game.moves({ verbose: true }).find((m) => m.san === lastSan);
+  if (!verbose) {
+    // Fallback: apply without animation
+    if (!game.move(lastSan)) return false;
+    lastMove = lastUci || lastMove;
+    renderBoard();
+    renderStatus();
+    return true;
+  }
+
+  animating = true;
+  boardEl.classList.add("animating");
+  try {
+    await animateMove(verbose);
+  } catch {
+    /* still apply */
+  }
+  if (!game.move(lastSan)) {
+    animating = false;
+    boardEl.classList.remove("animating");
+    clearFx();
+    return false;
+  }
+  lastMove =
+    lastUci ||
+    verbose.from + verbose.to + (verbose.promotion || "");
+  animating = false;
+  boardEl.classList.remove("animating");
+  clearFx();
+  writeUrl();
+  renderBoard();
+  renderStatus();
+  return true;
+}
+
+async function applyRecord(rec, { animateLast = false } = {}) {
+  if (!rec) return;
+  gameId = rec.id;
+  const moves = Array.isArray(rec.moves) ? rec.moves : [];
+  const incomingCount = moves.length;
+
+  // Animate when we receive a newer position than we already have
+  const shouldAnimate =
+    animateLast &&
+    incomingCount > 0 &&
+    incomingCount !== lastSeenMoveCount &&
+    !animating;
+
+  if (shouldAnimate && incomingCount > lastSeenMoveCount && lastSeenMoveCount >= 0) {
+    // Opponent (or poll) caught a new move — replay it
+    await replayIncomingMove(moves, rec.last || "");
+  } else if (shouldAnimate && lastSeenMoveCount < 0 && incomingCount > 0) {
+    // Fresh open of an in-progress game — replay only the latest ply
+    await replayIncomingMove(moves, rec.last || "");
+  } else if (moves.length) {
+    loadMovesQuiet(moves);
+    lastMove = rec.last || "";
+    writeUrl();
+    renderCoords();
+    renderBoard();
+    renderStatus();
+  } else if (rec.fen) {
+    game.load(rec.fen);
+    lastMove = rec.last || "";
+    writeUrl();
+    renderCoords();
+    renderBoard();
+    renderStatus();
+  } else {
+    lastMove = rec.last || "";
+    writeUrl();
+    renderCoords();
+    renderBoard();
+    renderStatus();
+  }
+
+  lastSeenMoveCount = game.history().length;
 }
 
 async function saveGame() {
@@ -643,6 +728,7 @@ async function saveGame() {
         san: lastSan(),
       }),
     });
+    lastSeenMoveCount = game.history().length;
   } catch {
     /* keep playing from local board */
   }
@@ -653,7 +739,7 @@ async function boot() {
     if (gameId) {
       const res = await fetch("/api/games/" + gameId);
       if (res.ok) {
-        applyRecord(await res.json());
+        await applyRecord(await res.json(), { animateLast: true });
       } else {
         lastLine.textContent = "Game not found — start a new game";
       }
@@ -661,7 +747,7 @@ async function boot() {
       const res = await fetch("/api/games", { method: "POST" });
       if (!res.ok) throw new Error("Could not create game");
       you = "w";
-      applyRecord(await res.json());
+      await applyRecord(await res.json(), { animateLast: false });
     }
   } catch {
     lastLine.textContent = "Could not reach the game server";
@@ -671,14 +757,16 @@ async function boot() {
     renderStatus();
   }
   pollTimer = setInterval(async () => {
-    if (!gameId || myTurn() || game.isGameOver()) return;
+    if (!gameId || myTurn() || game.isGameOver() || animating) return;
     try {
       const res = await fetch("/api/games/" + gameId);
       if (!res.ok) return;
       const rec = await res.json();
-      if (rec.fen && rec.fen !== game.fen()) applyRecord(rec);
+      if (rec.fen && rec.fen !== game.fen()) {
+        await applyRecord(rec, { animateLast: true });
+      }
     } catch {}
-  }, 3000);
+  }, 2500);
 }
 
 const PIECE_VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
