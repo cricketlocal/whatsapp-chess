@@ -48,6 +48,10 @@ let animating = false;
 
 const boardEl = document.getElementById("board");
 const fxLayer = document.getElementById("fx-layer");
+const capturedWhiteEl = document.getElementById("captured-white-pieces");
+const capturedBlackEl = document.getElementById("captured-black-pieces");
+const capturedWhiteTray = document.getElementById("captured-white");
+const capturedBlackTray = document.getElementById("captured-black");
 const youLine = document.getElementById("you-line");
 const turnLine = document.getElementById("turn-line");
 const lastLine = document.getElementById("last-line");
@@ -175,6 +179,56 @@ function renderBoard() {
   }
 }
 
+const CAPTURE_ORDER = { q: 0, r: 1, b: 2, n: 3, p: 4 };
+
+function capturedLineups() {
+  // pieces each side has taken (enemy piece codes like bQ, wP)
+  const by = { w: [], b: [] };
+  for (const m of game.history({ verbose: true })) {
+    if (!m.captured) continue;
+    const takenColour = m.color === "w" ? "b" : "w";
+    by[m.color].push(takenColour + m.captured.toUpperCase());
+  }
+  const sortCodes = (arr) =>
+    arr.slice().sort((a, b) => {
+      const ta = a[1].toLowerCase();
+      const tb = b[1].toLowerCase();
+      return (CAPTURE_ORDER[ta] ?? 9) - (CAPTURE_ORDER[tb] ?? 9);
+    });
+  return { w: sortCodes(by.w), b: sortCodes(by.b) };
+}
+
+function renderCapturedTray(el, tray, codes, taker) {
+  if (!el || !tray) return;
+  el.innerHTML = "";
+  const label = tray.querySelector(".captured-label");
+  if (label) {
+    label.textContent =
+      taker === you ? `You took (${colourName(taker)})` : `${colourName(taker)} took`;
+  }
+  if (!codes.length) {
+    tray.classList.add("empty");
+    const empty = document.createElement("span");
+    empty.className = "captured-empty";
+    empty.textContent = "—";
+    el.appendChild(empty);
+    return;
+  }
+  tray.classList.remove("empty");
+  for (const code of codes) {
+    const img = pieceImg(code, "captured-piece");
+    img.alt = code;
+    el.appendChild(img);
+  }
+}
+
+function renderCaptured() {
+  const { w, b } = capturedLineups();
+  // Keep White's tray under the board, Black's above (matches usual scoreboard feel)
+  renderCapturedTray(capturedWhiteEl, capturedWhiteTray, w, "w");
+  renderCapturedTray(capturedBlackEl, capturedBlackTray, b, "b");
+}
+
 function renderStatus() {
   youLine.textContent = gameId
     ? `You are ${colourName(you)} · Game ${gameId}`
@@ -200,6 +254,7 @@ function renderStatus() {
     pairs.push(`${i / 2 + 1}. ${sans[i]}${sans[i + 1] ? " " + sans[i + 1] : ""}`);
   }
   movesEl.innerHTML = pairs.map((p) => `<li>${p}</li>`).join("");
+  renderCaptured();
 
   document.getElementById("btn-whatsapp").disabled = false;
 }
@@ -248,26 +303,75 @@ function playCaptureFx(capSq) {
   if (!box || !fxLayer) return;
   const victimBtn = squareButton(capSq);
   const victimImg = victimBtn && victimBtn.querySelector("img.piece");
-  if (victimImg) victimImg.classList.add("capture-victim");
+  const cx = box.left + box.width / 2;
+  const cy = box.top + box.height / 2;
+
+  // Hide the real piece — shards replace it
+  if (victimImg) victimImg.classList.add("ghost-hide");
+
+  // White flash / boom core
+  const flash = document.createElement("div");
+  flash.className = "fx-flash";
+  flash.style.left = `${cx}px`;
+  flash.style.top = `${cy}px`;
+  flash.style.width = `${box.width * 1.35}px`;
+  flash.style.height = `${box.height * 1.35}px`;
+  fxLayer.appendChild(flash);
 
   const burst = document.createElement("div");
   burst.className = "fx-burst";
-  burst.style.left = `${box.left + box.width / 2}px`;
-  burst.style.top = `${box.top + box.height / 2}px`;
-  burst.style.width = `${box.width * 0.85}px`;
-  burst.style.height = `${box.height * 0.85}px`;
+  burst.style.left = `${cx}px`;
+  burst.style.top = `${cy}px`;
+  burst.style.width = `${box.width * 1.1}px`;
+  burst.style.height = `${box.height * 1.1}px`;
   fxLayer.appendChild(burst);
 
-  const sparkCount = 8;
+  // Shockwave ring
+  const ring = document.createElement("div");
+  ring.className = "fx-ring";
+  ring.style.left = `${cx}px`;
+  ring.style.top = `${cy}px`;
+  ring.style.width = `${box.width * 0.4}px`;
+  ring.style.height = `${box.height * 0.4}px`;
+  fxLayer.appendChild(ring);
+
+  // Piece shards — clones of the captured piece flying outward
+  const shardCount = 7;
+  if (victimImg) {
+    for (let i = 0; i < shardCount; i++) {
+      const ang = (Math.PI * 2 * i) / shardCount + (Math.random() - 0.5) * 0.35;
+      const dist = box.width * (0.55 + Math.random() * 0.55);
+      const rot = (Math.random() > 0.5 ? 1 : -1) * (140 + Math.random() * 220);
+      const shard = victimImg.cloneNode(true);
+      shard.className = "fx-shard";
+      const sw = box.width * (0.28 + Math.random() * 0.22);
+      shard.style.width = `${sw}px`;
+      shard.style.height = `${sw}px`;
+      shard.style.left = `${cx}px`;
+      shard.style.top = `${cy}px`;
+      shard.style.setProperty("--dx", `${Math.cos(ang) * dist}px`);
+      shard.style.setProperty("--dy", `${Math.sin(ang) * dist - box.height * 0.15}px`);
+      shard.style.setProperty("--rot", `${rot}deg`);
+      shard.style.setProperty("--delay", `${i * 12}ms`);
+      fxLayer.appendChild(shard);
+    }
+  }
+
+  // Sparks / embers
+  const sparkCount = 16;
   for (let i = 0; i < sparkCount; i++) {
-    const ang = (Math.PI * 2 * i) / sparkCount;
-    const dist = box.width * (0.35 + (i % 2) * 0.12);
+    const ang = (Math.PI * 2 * i) / sparkCount + Math.random() * 0.4;
+    const dist = box.width * (0.4 + Math.random() * 0.7);
     const spark = document.createElement("div");
     spark.className = "fx-spark";
-    spark.style.left = `${box.left + box.width / 2}px`;
-    spark.style.top = `${box.top + box.height / 2}px`;
+    const size = 4 + Math.random() * 7;
+    spark.style.width = `${size}px`;
+    spark.style.height = `${size}px`;
+    spark.style.left = `${cx}px`;
+    spark.style.top = `${cy}px`;
     spark.style.setProperty("--dx", `${Math.cos(ang) * dist}px`);
     spark.style.setProperty("--dy", `${Math.sin(ang) * dist}px`);
+    spark.style.setProperty("--delay", `${Math.floor(Math.random() * 40)}ms`);
     fxLayer.appendChild(spark);
   }
 }
@@ -315,8 +419,8 @@ function animateMove(move) {
       return;
     }
 
-    // 50% slower than the original 300/320ms slide
-    const slideDelay = isCapture ? 135 : 24;
+    // Let the explosion read first, then the taker slides in
+    const slideDelay = isCapture ? 220 : 24;
     const duration = isCapture ? 450 : 480;
     let done = false;
     const finish = () => {
@@ -338,7 +442,8 @@ function animateMove(move) {
     });
 
     main.flyer.addEventListener("transitionend", finish, { once: true });
-    setTimeout(finish, slideDelay + duration + 80);
+    // Keep FX layer long enough for shards to finish flying
+    setTimeout(finish, slideDelay + duration + (isCapture ? 200 : 80));
   });
 }
 
