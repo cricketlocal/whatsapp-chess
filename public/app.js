@@ -216,9 +216,16 @@ function renderCapturedTray(el, tray, codes, taker) {
   }
   tray.classList.remove("empty");
   for (const code of codes) {
+    const wrap = document.createElement("span");
+    wrap.className = "captured-item";
     const img = pieceImg(code, "captured-piece");
     img.alt = code;
-    el.appendChild(img);
+    const bandage = document.createElement("span");
+    bandage.className = "captured-bandage";
+    bandage.setAttribute("aria-hidden", "true");
+    wrap.appendChild(img);
+    wrap.appendChild(bandage);
+    el.appendChild(wrap);
   }
 }
 
@@ -298,18 +305,21 @@ function clearFx() {
   if (fxLayer) fxLayer.innerHTML = "";
 }
 
-function playCaptureFx(capSq) {
-  const box = squareBox(capSq);
-  if (!box || !fxLayer) return;
-  const victimBtn = squareButton(capSq);
-  const victimImg = victimBtn && victimBtn.querySelector("img.piece");
-  const cx = box.left + box.width / 2;
-  const cy = box.top + box.height / 2;
+function waitMs(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
-  // Hide the real piece — shards replace it
+function makeTntStick() {
+  const tnt = document.createElement("div");
+  tnt.className = "fx-tnt";
+  tnt.innerHTML =
+    '<span class="fx-tnt-body"></span><span class="fx-tnt-band">TNT</span><span class="fx-tnt-fuse"></span><span class="fx-tnt-spark"></span>';
+  return tnt;
+}
+
+function explodeVictim(victimImg, box, cx, cy) {
   if (victimImg) victimImg.classList.add("ghost-hide");
 
-  // White flash / boom core
   const flash = document.createElement("div");
   flash.className = "fx-flash";
   flash.style.left = `${cx}px`;
@@ -326,7 +336,6 @@ function playCaptureFx(capSq) {
   burst.style.height = `${box.height * 1.1}px`;
   fxLayer.appendChild(burst);
 
-  // Shockwave ring
   const ring = document.createElement("div");
   ring.className = "fx-ring";
   ring.style.left = `${cx}px`;
@@ -335,11 +344,9 @@ function playCaptureFx(capSq) {
   ring.style.height = `${box.height * 0.4}px`;
   fxLayer.appendChild(ring);
 
-  // Piece shards — clones of the captured piece flying outward
-  const shardCount = 7;
   if (victimImg) {
-    for (let i = 0; i < shardCount; i++) {
-      const ang = (Math.PI * 2 * i) / shardCount + (Math.random() - 0.5) * 0.35;
+    for (let i = 0; i < 7; i++) {
+      const ang = (Math.PI * 2 * i) / 7 + (Math.random() - 0.5) * 0.35;
       const dist = box.width * (0.55 + Math.random() * 0.55);
       const rot = (Math.random() > 0.5 ? 1 : -1) * (140 + Math.random() * 220);
       const shard = victimImg.cloneNode(true);
@@ -357,10 +364,8 @@ function playCaptureFx(capSq) {
     }
   }
 
-  // Sparks / embers
-  const sparkCount = 16;
-  for (let i = 0; i < sparkCount; i++) {
-    const ang = (Math.PI * 2 * i) / sparkCount + Math.random() * 0.4;
+  for (let i = 0; i < 16; i++) {
+    const ang = (Math.PI * 2 * i) / 16 + Math.random() * 0.4;
     const dist = box.width * (0.4 + Math.random() * 0.7);
     const spark = document.createElement("div");
     spark.className = "fx-spark";
@@ -374,6 +379,45 @@ function playCaptureFx(capSq) {
     spark.style.setProperty("--delay", `${Math.floor(Math.random() * 40)}ms`);
     fxLayer.appendChild(spark);
   }
+}
+
+async function playCaptureFx(capSq) {
+  const box = squareBox(capSq);
+  if (!box || !fxLayer) return;
+  const victimBtn = squareButton(capSq);
+  const victimImg = victimBtn && victimBtn.querySelector("img.piece");
+  const cx = box.left + box.width / 2;
+  const cy = box.top + box.height / 2;
+
+  // 1) TNT bounces onto the square
+  const tnt = makeTntStick();
+  const tntW = box.width * 0.55;
+  const tntH = box.height * 0.28;
+  tnt.style.width = `${tntW}px`;
+  tnt.style.height = `${tntH}px`;
+  tnt.style.left = `${cx}px`;
+  tnt.style.top = `${cy - box.height * 0.9}px`;
+  tnt.style.setProperty("--land-y", `${box.height * 0.9}px`);
+  fxLayer.appendChild(tnt);
+  await waitMs(20);
+  tnt.classList.add("bounce-in");
+  await waitMs(520);
+
+  // Fuse fizz
+  tnt.classList.add("fuse-lit");
+  await waitMs(280);
+
+  // 2) Piece shakes in fear
+  if (victimImg) {
+    victimImg.classList.add("piece-shake");
+  }
+  await waitMs(420);
+
+  // 3) Boom — hide TNT, explode piece
+  tnt.remove();
+  if (victimImg) victimImg.classList.remove("piece-shake");
+  explodeVictim(victimImg, box, cx, cy);
+  await waitMs(520);
 }
 
 function castleRookSquares(move) {
@@ -405,46 +449,40 @@ function spawnFlyer(fromSq, toSq, extraClass) {
   return { flyer, endX, endY };
 }
 
-function animateMove(move) {
-  return new Promise((resolve) => {
-    const isCapture = !!move.captured;
-    const capSq = captureSquareFor(move);
-    if (isCapture && capSq) playCaptureFx(capSq);
+async function animateMove(move) {
+  const isCapture = !!move.captured;
+  const capSq = captureSquareFor(move);
 
-    const main = spawnFlyer(move.from, move.to, isCapture ? "capturing" : "");
-    const rook = castleRookSquares(move);
-    const rookFx = rook ? spawnFlyer(rook.from, rook.to, "") : null;
-    if (!main) {
-      resolve();
-      return;
-    }
+  // Captures: TNT → shake → explode, then taker slides onto the square
+  if (isCapture && capSq) {
+    await playCaptureFx(capSq);
+  }
 
-    // Let the explosion read first, then the taker slides in
-    const slideDelay = isCapture ? 220 : 24;
-    const duration = isCapture ? 450 : 480;
+  const main = spawnFlyer(move.from, move.to, isCapture ? "capturing" : "");
+  const rook = castleRookSquares(move);
+  const rookFx = rook ? spawnFlyer(rook.from, rook.to, "") : null;
+  if (!main) return;
+
+  const duration = isCapture ? 450 : 480;
+  await new Promise((resolve) => {
     let done = false;
     const finish = () => {
       if (done) return;
       done = true;
-      clearFx();
       resolve();
     };
-
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setTimeout(() => {
-          main.flyer.style.transform = `translate(${main.endX}px, ${main.endY}px) scale(${isCapture ? 1.06 : 1})`;
-          if (rookFx) {
-            rookFx.flyer.style.transform = `translate(${rookFx.endX}px, ${rookFx.endY}px)`;
-          }
-        }, slideDelay);
+        main.flyer.style.transform = `translate(${main.endX}px, ${main.endY}px) scale(${isCapture ? 1.06 : 1})`;
+        if (rookFx) {
+          rookFx.flyer.style.transform = `translate(${rookFx.endX}px, ${rookFx.endY}px)`;
+        }
       });
     });
-
     main.flyer.addEventListener("transitionend", finish, { once: true });
-    // Keep FX layer long enough for shards to finish flying
-    setTimeout(finish, slideDelay + duration + (isCapture ? 200 : 80));
+    setTimeout(finish, duration + 80);
   });
+  clearFx();
 }
 
 async function tryMove(from, to, promotion) {
