@@ -44,8 +44,10 @@ let selected = null;
 let pendingPromo = null;
 let lastMove = params.get("last") || "";
 let pollTimer = null;
+let animating = false;
 
 const boardEl = document.getElementById("board");
+const fxLayer = document.getElementById("fx-layer");
 const youLine = document.getElementById("you-line");
 const turnLine = document.getElementById("turn-line");
 const lastLine = document.getElementById("last-line");
@@ -202,17 +204,177 @@ function renderStatus() {
   document.getElementById("btn-whatsapp").disabled = false;
 }
 
-function tryMove(from, to, promotion) {
+function squareButton(sq) {
+  return boardEl.querySelector(`[data-square="${sq}"]`);
+}
+
+function squareBox(sq) {
+  const el = squareButton(sq);
+  if (!el || !fxLayer) return null;
+  const stage = fxLayer.getBoundingClientRect();
+  const box = el.getBoundingClientRect();
+  return {
+    left: box.left - stage.left,
+    top: box.top - stage.top,
+    width: box.width,
+    height: box.height,
+  };
+}
+
+function captureSquareFor(move) {
+  if (!move.captured) return null;
+  if (String(move.flags || "").includes("e")) {
+    return move.to[0] + move.from[1];
+  }
+  return move.to;
+}
+
+function findVerboseMove(from, to, promotion) {
+  let promo = promotion;
+  if (!promo && needsPromotion(from, to)) promo = "q";
+  return game.moves({ verbose: true }).find((m) => {
+    if (m.from !== from || m.to !== to) return false;
+    if (m.promotion) return m.promotion === (promo || "q");
+    return true;
+  });
+}
+
+function clearFx() {
+  if (fxLayer) fxLayer.innerHTML = "";
+}
+
+function playCaptureFx(capSq) {
+  const box = squareBox(capSq);
+  if (!box || !fxLayer) return;
+  const victimBtn = squareButton(capSq);
+  const victimImg = victimBtn && victimBtn.querySelector("img.piece");
+  if (victimImg) victimImg.classList.add("capture-victim");
+
+  const burst = document.createElement("div");
+  burst.className = "fx-burst";
+  burst.style.left = `${box.left + box.width / 2}px`;
+  burst.style.top = `${box.top + box.height / 2}px`;
+  burst.style.width = `${box.width * 0.85}px`;
+  burst.style.height = `${box.height * 0.85}px`;
+  fxLayer.appendChild(burst);
+
+  const sparkCount = 8;
+  for (let i = 0; i < sparkCount; i++) {
+    const ang = (Math.PI * 2 * i) / sparkCount;
+    const dist = box.width * (0.35 + (i % 2) * 0.12);
+    const spark = document.createElement("div");
+    spark.className = "fx-spark";
+    spark.style.left = `${box.left + box.width / 2}px`;
+    spark.style.top = `${box.top + box.height / 2}px`;
+    spark.style.setProperty("--dx", `${Math.cos(ang) * dist}px`);
+    spark.style.setProperty("--dy", `${Math.sin(ang) * dist}px`);
+    fxLayer.appendChild(spark);
+  }
+}
+
+function castleRookSquares(move) {
+  const flags = String(move.flags || "");
+  if (!flags.includes("k") && !flags.includes("q")) return null;
+  const rank = move.from[1];
+  if (flags.includes("k")) return { from: "h" + rank, to: "f" + rank };
+  return { from: "a" + rank, to: "d" + rank };
+}
+
+function spawnFlyer(fromSq, toSq, extraClass) {
+  const fromBox = squareBox(fromSq);
+  const toBox = squareBox(toSq);
+  const fromBtn = squareButton(fromSq);
+  const moverImg = fromBtn && fromBtn.querySelector("img.piece");
+  if (!fromBox || !toBox || !moverImg || !fxLayer) return null;
+
+  const flyer = moverImg.cloneNode(true);
+  flyer.className = "fx-flyer" + (extraClass ? " " + extraClass : "");
+  flyer.style.width = `${fromBox.width * 0.92}px`;
+  flyer.style.height = `${fromBox.height * 0.92}px`;
+  const startX = fromBox.left + fromBox.width * 0.04;
+  const startY = fromBox.top + fromBox.height * 0.04;
+  const endX = toBox.left + toBox.width * 0.04;
+  const endY = toBox.top + toBox.height * 0.04;
+  flyer.style.transform = `translate(${startX}px, ${startY}px)`;
+  fxLayer.appendChild(flyer);
+  moverImg.classList.add("ghost-hide");
+  return { flyer, endX, endY };
+}
+
+function animateMove(move) {
+  return new Promise((resolve) => {
+    const isCapture = !!move.captured;
+    const capSq = captureSquareFor(move);
+    if (isCapture && capSq) playCaptureFx(capSq);
+
+    const main = spawnFlyer(move.from, move.to, isCapture ? "capturing" : "");
+    const rook = castleRookSquares(move);
+    const rookFx = rook ? spawnFlyer(rook.from, rook.to, "") : null;
+    if (!main) {
+      resolve();
+      return;
+    }
+
+    const slideDelay = isCapture ? 90 : 16;
+    const duration = isCapture ? 300 : 320;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearFx();
+      resolve();
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          main.flyer.style.transform = `translate(${main.endX}px, ${main.endY}px) scale(${isCapture ? 1.06 : 1})`;
+          if (rookFx) {
+            rookFx.flyer.style.transform = `translate(${rookFx.endX}px, ${rookFx.endY}px)`;
+          }
+        }, slideDelay);
+      });
+    });
+
+    main.flyer.addEventListener("transitionend", finish, { once: true });
+    setTimeout(finish, slideDelay + duration + 80);
+  });
+}
+
+async function tryMove(from, to, promotion) {
+  if (animating) return false;
   const spec = { from, to };
   if (promotion) spec.promotion = promotion;
   else if (needsPromotion(from, to)) spec.promotion = "q";
-  const move = game.move(spec);
-  if (!move) return false;
-  lastMove = from + to + (move.promotion || "");
+
+  const preview = findVerboseMove(from, to, spec.promotion);
+  if (!preview) return false;
+
   selected = null;
   pendingPromo = null;
   promoEl.hidden = true;
   hintOut.hidden = true;
+  renderBoard();
+
+  animating = true;
+  boardEl.classList.add("animating");
+  try {
+    await animateMove(preview);
+  } catch {
+    /* fall through and still apply move */
+  }
+
+  const move = game.move(spec);
+  animating = false;
+  boardEl.classList.remove("animating");
+  clearFx();
+  if (!move) {
+    renderBoard();
+    renderStatus();
+    return false;
+  }
+
+  lastMove = from + to + (move.promotion || "");
   writeUrl();
   renderBoard();
   renderStatus();
@@ -249,6 +411,7 @@ function showPromo(from, to) {
 }
 
 function onSquare(sq) {
+  if (animating) return;
   if (pendingPromo) {
     if (sq === pendingPromo.to) tryMove(pendingPromo.from, pendingPromo.to, "q");
     return;
