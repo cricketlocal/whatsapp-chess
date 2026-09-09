@@ -46,6 +46,9 @@ let pendingPromo = null;
 let lastMove = params.get("last") || "";
 let pollTimer = null;
 let animating = false;
+let vsAi = params.get("vs") === "ai";
+let aiDepth = Math.min(3, Math.max(1, Number(params.get("diff") || 2) || 2));
+let aiBusy = false;
 
 const boardEl = document.getElementById("board");
 const board3dEl = document.getElementById("board3d");
@@ -117,7 +120,12 @@ function lastSan() {
 function writeUrl() {
   const next = new URL(location.href);
   next.search = "";
-  if (gameId) next.searchParams.set("g", gameId);
+  if (vsAi) {
+    next.searchParams.set("vs", "ai");
+    next.searchParams.set("diff", String(aiDepth));
+  } else if (gameId) {
+    next.searchParams.set("g", gameId);
+  }
   next.searchParams.set("you", you);
   const n = game.history().length;
   if (n) next.searchParams.set("n", String(n));
@@ -230,20 +238,30 @@ function renderCaptured() {
 }
 
 function renderStatus() {
-  youLine.textContent = gameId
-    ? `You are ${colourName(you)} · Game ${gameId}`
-    : `You are ${colourName(you)}`;
+  const levelName = aiDepth === 1 ? "Easy" : aiDepth === 3 ? "Hard" : "Medium";
+  if (vsAi) {
+    youLine.textContent = `You are ${colourName(you)} · vs AI (${levelName})`;
+  } else {
+    youLine.textContent = gameId
+      ? `You are ${colourName(you)} · Game ${gameId}`
+      : `You are ${colourName(you)}`;
+  }
   const hist = game.history();
   lastLine.textContent = hist.length ? `Last move: ${hist[hist.length - 1]}` : "Opening position";
 
   if (game.isCheckmate()) {
-    turnLine.textContent = `Checkmate — ${colourName(game.turn() === "w" ? "b" : "w")} wins`;
+    const winner = colourName(game.turn() === "w" ? "b" : "w");
+    turnLine.textContent = vsAi
+      ? `Checkmate — ${winner === colourName(you) ? "You win!" : "AI wins"}`
+      : `Checkmate — ${winner} wins`;
   } else if (game.isStalemate()) {
     turnLine.textContent = "Stalemate — draw";
   } else if (game.isDraw()) {
     turnLine.textContent = "Draw";
   } else if (myTurn()) {
     turnLine.textContent = game.inCheck() ? "Your move — you are in check" : "Your move";
+  } else if (vsAi) {
+    turnLine.textContent = aiBusy ? "AI thinking…" : "AI’s turn…";
   } else {
     turnLine.textContent = `Waiting for ${colourName(game.turn())} — send the link on WhatsApp`;
   }
@@ -256,7 +274,18 @@ function renderStatus() {
   movesEl.innerHTML = pairs.map((p) => `<li>${p}</li>`).join("");
   renderCaptured();
 
-  document.getElementById("btn-whatsapp").disabled = false;
+  const wa = document.getElementById("btn-whatsapp");
+  const copy = document.getElementById("btn-copy");
+  if (wa) wa.disabled = !!vsAi;
+  if (copy) copy.disabled = !!vsAi;
+  const help = document.getElementById("help-text");
+  if (help) {
+    help.innerHTML = vsAi
+      ? `Playing <strong>vs AI</strong> (${levelName}). Tap pieces to move — the computer replies automatically.`
+      : `After you move, tap <strong>Send this turn on WhatsApp</strong>. Or tap <strong>Play vs AI</strong> for a solo game.`;
+  }
+  const diffSel = document.getElementById("ai-diff");
+  if (diffSel && String(aiDepth) !== diffSel.value) diffSel.value = String(aiDepth);
 }
 
 function squareButton(sq) {
@@ -504,8 +533,87 @@ async function tryMove(from, to, promotion) {
   writeUrl();
   renderBoard();
   renderStatus();
-  saveGame();
+  if (!vsAi) saveGame();
+  if (vsAi) queueMicrotask(() => maybeAiReply());
   return true;
+}
+
+function pickAiMove(depth) {
+  const ch = new Chess(game.fen());
+  const white = ch.turn() === "w";
+  const moves = ch.moves({ verbose: true });
+  if (!moves.length) return null;
+
+  // Easy: sometimes play a random legal move
+  if (depth <= 1 && Math.random() < 0.35) {
+    return moves[Math.floor(Math.random() * moves.length)];
+  }
+
+  const searchDepth = depth <= 1 ? 1 : depth;
+  let bestMove = moves[0];
+  let bestScore = white ? -Infinity : Infinity;
+
+  // Prefer captures / checks slightly at root for snappier play
+  const ordered = moves.slice().sort((a, b) => {
+    const sa = (a.captured ? 10 : 0) + (a.san.includes("+") ? 3 : 0);
+    const sb = (b.captured ? 10 : 0) + (b.san.includes("+") ? 3 : 0);
+    return sb - sa;
+  });
+
+  for (const m of ordered) {
+    ch.move(m);
+    const s = minimax(ch, searchDepth - 1, -Infinity, Infinity, ch.turn() === "w");
+    ch.undo();
+    if (white ? s > bestScore : s < bestScore) {
+      bestScore = s;
+      bestMove = m;
+    }
+  }
+  return bestMove;
+}
+
+async function maybeAiReply() {
+  if (!vsAi || aiBusy || animating || game.isGameOver()) return;
+  if (game.turn() === you) return;
+  aiBusy = true;
+  renderStatus();
+  const thinkMs = aiDepth === 1 ? 280 : aiDepth === 3 ? 520 : 380;
+  await waitMs(thinkMs);
+  try {
+    const m = pickAiMove(aiDepth);
+    if (!m) return;
+    // tryMove animates + applies; it will not re-enter AI while turn is yours after
+    await tryMove(m.from, m.to, m.promotion || undefined);
+  } finally {
+    aiBusy = false;
+    renderStatus();
+  }
+}
+
+function startAiGame() {
+  const sel = document.getElementById("ai-diff");
+  aiDepth = Math.min(3, Math.max(1, Number(sel && sel.value ? sel.value : 2) || 2));
+  vsAi = true;
+  you = "w";
+  gameId = "";
+  game.reset();
+  selected = null;
+  pendingPromo = null;
+  lastMove = "";
+  lastSeenMoveCount = 0;
+  aiBusy = false;
+  promoEl.hidden = true;
+  hintOut.hidden = true;
+  writeUrl();
+  renderCoords();
+  renderBoard();
+  renderStatus();
+}
+
+function startFriendGame() {
+  vsAi = false;
+  aiBusy = false;
+  location.href = location.pathname + "?you=w";
 }
 
 function needsPromotion(from, to) {
@@ -537,7 +645,7 @@ function showPromo(from, to) {
 }
 
 function onSquare(sq) {
-  if (animating) return;
+  if (animating || aiBusy) return;
   if (pendingPromo) {
     if (sq === pendingPromo.to) tryMove(pendingPromo.from, pendingPromo.to, "q");
     return;
@@ -591,7 +699,11 @@ async function copyLink() {
 }
 
 function newGame() {
-  location.href = location.pathname + "?you=w";
+  if (vsAi) {
+    startAiGame();
+    return;
+  }
+  startFriendGame();
 }
 
 let lastSeenMoveCount = -1;
@@ -717,6 +829,18 @@ async function saveGame() {
 }
 
 async function boot() {
+  if (vsAi) {
+    // Solo AI game — no server required
+    you = "w";
+    gameId = "";
+    game.reset();
+    lastSeenMoveCount = 0;
+    writeUrl();
+    renderCoords();
+    renderBoard();
+    renderStatus();
+    return;
+  }
   try {
     if (gameId) {
       const res = await fetch("/api/games/" + gameId);
@@ -739,7 +863,7 @@ async function boot() {
     renderStatus();
   }
   pollTimer = setInterval(async () => {
-    if (!gameId || myTurn() || game.isGameOver() || animating) return;
+    if (vsAi || !gameId || myTurn() || game.isGameOver() || animating) return;
     try {
       const res = await fetch("/api/games/" + gameId);
       if (!res.ok) return;
@@ -850,7 +974,13 @@ async function askHint() {
 
 document.getElementById("btn-whatsapp").addEventListener("click", sendWhatsApp);
 document.getElementById("btn-copy").addEventListener("click", copyLink);
-document.getElementById("btn-new").addEventListener("click", newGame);
+document.getElementById("btn-new").addEventListener("click", startFriendGame);
+document.getElementById("btn-ai").addEventListener("click", startAiGame);
+document.getElementById("ai-diff").addEventListener("change", (e) => {
+  aiDepth = Math.min(3, Math.max(1, Number(e.target.value) || 2));
+  if (vsAi) writeUrl();
+  renderStatus();
+});
 
 (function secretHintOnTitle() {
   const title = document.getElementById("title");

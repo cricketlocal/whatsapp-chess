@@ -55,19 +55,30 @@
       <div class="promo-btns" id="promo-btns"></div>
     </div>
 
+    <div class="actions ai-row">
+      <button type="button" class="btn btn-ai" id="btn-ai">Play vs AI</button>
+      <label class="ai-diff-label" for="ai-diff">Level
+        <select id="ai-diff" aria-label="AI difficulty">
+          <option value="1">Easy</option>
+          <option value="2" selected>Medium</option>
+          <option value="3">Hard</option>
+        </select>
+      </label>
+    </div>
+
     <div class="actions">
       <button type="button" class="btn btn-wa" id="btn-whatsapp">Send this turn on WhatsApp</button>
       <button type="button" class="btn btn-ghost" id="btn-copy">Copy link</button>
-      <button type="button" class="btn btn-ghost" id="btn-new">New game (you White)</button>
+      <button type="button" class="btn btn-ghost" id="btn-new">New vs friend</button>
     </div>
 
     <p class="hint-out" id="hint-out" hidden></p>
     <ol class="moves" id="moves"></ol>
 
-    <p class="help">
+    <p class="help" id="help-text">
       After you move, tap <strong>Send this turn on WhatsApp</strong>.
       Your opponent opens the link, moves, and sends it back.
-      No WhatsApp bot — the link <em>is</em> the game.
+      Or tap <strong>Play vs AI</strong> for a solo game on this device.
     </p>
   </main>
   <script type="module" src="app.js"></script>
