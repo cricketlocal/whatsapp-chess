@@ -231,134 +231,109 @@ function addGoldBands(g, goldMat, bands) {
 }
 
 /**
- * Classic Staunton knight: flared base + clear side-profile horse head.
- * Built at final height (no extra Y stretch) so the horse doesn't giraffe.
+ * Classic Staunton knight built from readable solids (not a soft blob extrude).
+ * Group -Z is forward (toward the opponent for White).
  */
 function buildKnight(mat, goldMat, s) {
   const g = new THREE.Group();
+  const add = (mesh, x, y, z, rx = 0, ry = 0, rz = 0) => {
+    mesh.position.set(x, y, z);
+    mesh.rotation.set(rx, ry, rz);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    g.add(mesh);
+    return mesh;
+  };
 
-  // Flared pedestal + short neck column
+  // Flared pedestal
   g.add(
     lathe(
       [
         [0.02, 0],
-        [0.58, 0],
-        [0.58, 0.09],
-        [0.44, 0.15],
-        [0.38, 0.28],
-        [0.34, 0.42],
-        [0.36, 0.52],
-        [0.32, 0.58],
+        [0.6, 0],
+        [0.6, 0.1],
+        [0.45, 0.16],
+        [0.38, 0.3],
+        [0.34, 0.48],
+        [0.36, 0.58],
       ],
       mat,
       s
     )
   );
-  // Double gold collar on the base (reads clearly from camera)
   addGoldBands(g, goldMat, [
-    [0.11 * s, 0.46 * s, 0.026],
-    [0.22 * s, 0.38 * s, 0.02],
+    [0.12 * s, 0.48 * s, 0.028],
+    [0.24 * s, 0.4 * s, 0.022],
   ]);
 
-  // Iconic Staunton side silhouette (units ≈ head height 1.0)
-  // Facing +X in shape space → after rot.y=-90°, faces -Z (toward Black for White).
-  const sh = new THREE.Shape();
-  // Chest / front of neck base
-  sh.moveTo(0.08, 0.0);
-  // Back of neck rising into mane
-  sh.bezierCurveTo(-0.02, 0.05, -0.08, 0.22, -0.06, 0.42);
-  sh.bezierCurveTo(-0.1, 0.58, -0.12, 0.72, -0.02, 0.86); // crest
-  // Mane notch (classic Staunton “cut”)
-  sh.bezierCurveTo(0.04, 0.94, 0.1, 0.98, 0.18, 0.96);
-  sh.bezierCurveTo(0.22, 0.9, 0.2, 0.84, 0.24, 0.82); // notch dip
-  // Forehead → long snout
-  sh.bezierCurveTo(0.32, 0.86, 0.42, 0.88, 0.52, 0.82);
-  sh.bezierCurveTo(0.62, 0.74, 0.72, 0.64, 0.8, 0.52); // nose bridge
-  sh.bezierCurveTo(0.86, 0.44, 0.88, 0.36, 0.84, 0.3); // muzzle tip
-  // Mouth undercut + jaw
-  sh.bezierCurveTo(0.76, 0.28, 0.68, 0.32, 0.6, 0.36);
-  sh.bezierCurveTo(0.52, 0.4, 0.46, 0.42, 0.4, 0.4);
-  sh.bezierCurveTo(0.34, 0.36, 0.3, 0.28, 0.28, 0.18); // throat
-  sh.bezierCurveTo(0.26, 0.1, 0.18, 0.02, 0.08, 0.0);
-  sh.closePath();
+  const u = s;
 
-  const headGeo = new THREE.ExtrudeGeometry(sh, {
-    depth: 0.48,
-    bevelEnabled: true,
-    bevelThickness: 0.055,
-    bevelSize: 0.05,
-    bevelSegments: 4,
-    curveSegments: 28,
-  });
-  headGeo.computeVertexNormals();
-  headGeo.translate(-0.12, 0.0, -0.24);
+  // Neck stump tilting slightly forward
+  add(
+    new THREE.Mesh(new THREE.CylinderGeometry(0.16 * u, 0.2 * u, 0.28 * u, 16), mat),
+    0,
+    0.7 * u,
+    0.02 * u,
+    0.35,
+    0,
+    0
+  );
 
-  const head = new THREE.Mesh(headGeo, mat);
-  // Uniform-ish scale so silhouette stays horse-like (no Y giraffe stretch later)
-  const hs = s * 1.05;
-  head.scale.set(hs, hs * 1.05, hs * 0.95);
-  head.position.set(0, 0.3 * s, 0);
-  head.rotation.y = -Math.PI / 2; // shape +X (nose) → group −Z
-  head.castShadow = true;
-  head.receiveShadow = true;
-  g.add(head);
+  // Chest / breast
+  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.22 * u, 16, 12), mat);
+  chest.scale.set(0.85, 0.95, 1.15);
+  add(chest, 0, 0.72 * u, -0.06 * u);
 
-  // Details are parented in HEAD local space (shape XY, extrude Z) so they track the nose.
-  // Twin pointed ears near the crest
-  function makeEar(side) {
-    const earSh = new THREE.Shape();
-    earSh.moveTo(0, 0);
-    earSh.lineTo(0.02, 0.22);
-    earSh.lineTo(0.1, 0.04);
-    earSh.closePath();
-    const ear = new THREE.Mesh(
-      new THREE.ExtrudeGeometry(earSh, {
-        depth: 0.07,
-        bevelEnabled: true,
-        bevelThickness: 0.015,
-        bevelSize: 0.012,
-        bevelSegments: 2,
-      }),
-      mat
+  // Main skull elongated toward -Z (nose)
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.2 * u, 18, 14), mat);
+  skull.scale.set(0.95, 1.05, 1.55);
+  add(skull, 0, 0.98 * u, -0.12 * u);
+
+  // Long tapered snout
+  const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.06 * u, 0.12 * u, 0.36 * u, 14), mat);
+  add(snout, 0, 0.9 * u, -0.42 * u, Math.PI / 2, 0, 0);
+
+  // Muzzle tip
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.075 * u, 12, 10), mat), 0, 0.88 * u, -0.6 * u);
+
+  // Jaw undercut
+  const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.11 * u, 12, 10), mat);
+  jaw.scale.set(0.9, 0.7, 1.2);
+  add(jaw, 0, 0.78 * u, -0.32 * u);
+
+  // Mane crest (visible from White's camera behind the piece)
+  const mane = new THREE.Mesh(new THREE.SphereGeometry(0.14 * u, 12, 10), mat);
+  mane.scale.set(0.7, 1.35, 0.95);
+  add(mane, 0, 1.22 * u, 0.04 * u);
+
+  // Big pointed ears — primary "this is a knight" cue
+  for (const side of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.055 * u, 0.24 * u, 8), mat);
+    add(ear, side * 0.1 * u, 1.36 * u, -0.02 * u, -0.35, 0, side * 0.25);
+  }
+
+  // Eyes
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a1008, roughness: 0.45 });
+  for (const side of [-1, 1]) {
+    add(
+      new THREE.Mesh(new THREE.SphereGeometry(0.028 * u, 8, 8), eyeMat),
+      side * 0.12 * u,
+      1.02 * u,
+      -0.28 * u
     );
-    ear.geometry.translate(0, 0, -0.035);
-    // Local: crest ~ (0.18, 0.96), thickness along ±Z
-    ear.position.set(0.16, 0.92, side * 0.12);
-    ear.rotation.z = side * 0.1;
-    ear.castShadow = true;
-    head.add(ear);
-  }
-  makeEar(1);
-  makeEar(-1);
-
-  // Soft muzzle bulb at the snout tip
-  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 12), mat);
-  snout.scale.set(1.55, 0.85, 1.1);
-  snout.position.set(0.78, 0.34, 0);
-  snout.castShadow = true;
-  head.add(snout);
-
-  // Dark eyes on either side of the forehead
-  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a1008, roughness: 0.5 });
-  for (const side of [1, -1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), eyeMat);
-    eye.position.set(0.38, 0.72, side * 0.2);
-    head.add(eye);
   }
 
-  // Mane ridge along the crest
-  const mane = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.32, 10), mat);
-  mane.position.set(0.05, 0.88, 0);
-  mane.rotation.z = 0.9;
-  mane.castShadow = true;
-  head.add(mane);
-
-  // Gold bridle across the muzzle (torus in YZ plane relative to head)
-  const bridle = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.018, 8, 24), goldMat);
-  bridle.position.set(0.48, 0.42, 0);
-  bridle.rotation.y = Math.PI / 2;
-  bridle.castShadow = true;
-  head.add(bridle);
+  // Gold bridle + nose band
+  add(new THREE.Mesh(new THREE.TorusGeometry(0.11 * u, 0.018, 8, 24), goldMat), 0, 0.9 * u, -0.38 * u);
+  add(
+    new THREE.Mesh(new THREE.TorusGeometry(0.08 * u, 0.014, 8, 20), goldMat),
+    0,
+    0.88 * u,
+    -0.52 * u,
+    Math.PI / 2,
+    0,
+    0
+  );
 
   return g;
 }
