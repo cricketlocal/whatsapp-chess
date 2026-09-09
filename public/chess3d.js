@@ -40,52 +40,52 @@ function woodTexture(base, grain, opts = {}) {
 }
 
 function makeMats() {
-  const maple = woodTexture("#e8d5b5", "#c4a882", { speck: "#8a7050" });
-  const walnut = woodTexture("#6b4428", "#3d2415", { speck: "#1a0e08" });
-  const rosewood = woodTexture("#4a2c22", "#2a1510", { speck: "#100808" });
+  const maple = woodTexture("#f3e4c8", "#d2b896", { speck: "#a88860" });
+  const walnut = woodTexture("#8a5a38", "#5a3820", { speck: "#2a1810" });
+  const rosewood = woodTexture("#6a4030", "#3e2418", { speck: "#1a100c" });
   rosewood.repeat.set(2, 2);
 
   return {
     lightSq: new THREE.MeshStandardMaterial({
       map: maple,
-      roughness: 0.42,
-      metalness: 0.08,
-      envMapIntensity: 0.85,
+      roughness: 0.38,
+      metalness: 0.06,
+      envMapIntensity: 1.0,
     }),
     darkSq: new THREE.MeshStandardMaterial({
       map: walnut,
-      roughness: 0.48,
-      metalness: 0.06,
-      envMapIntensity: 0.7,
+      roughness: 0.44,
+      metalness: 0.05,
+      envMapIntensity: 0.85,
     }),
     frame: new THREE.MeshStandardMaterial({
       map: rosewood,
-      roughness: 0.38,
-      metalness: 0.12,
-      envMapIntensity: 0.9,
+      roughness: 0.36,
+      metalness: 0.1,
+      envMapIntensity: 1.0,
     }),
     gold: new THREE.MeshStandardMaterial({
-      color: 0xc9a227,
+      color: 0xd4af37,
       roughness: 0.28,
       metalness: 0.85,
       envMapIntensity: 1.2,
     }),
     felt: new THREE.MeshStandardMaterial({
-      color: 0x1a3d2b,
-      roughness: 0.95,
+      color: 0x2d5a40,
+      roughness: 0.92,
       metalness: 0,
     }),
     whitePiece: new THREE.MeshStandardMaterial({
-      color: 0xf3e6d0,
-      roughness: 0.32,
-      metalness: 0.12,
-      envMapIntensity: 1.0,
+      color: 0xfff6e8,
+      roughness: 0.28,
+      metalness: 0.1,
+      envMapIntensity: 1.1,
     }),
     blackPiece: new THREE.MeshStandardMaterial({
-      color: 0x1c1412,
-      roughness: 0.36,
-      metalness: 0.15,
-      envMapIntensity: 0.85,
+      color: 0x2a201c,
+      roughness: 0.34,
+      metalness: 0.12,
+      envMapIntensity: 0.95,
     }),
     highlight: new THREE.MeshBasicMaterial({
       color: 0xf6c945,
@@ -210,13 +210,13 @@ export function createChess3D(container, hooks = {}) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.35;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x2a221c);
-  scene.fog = new THREE.Fog(0x2a221c, 16, 32);
+  scene.background = new THREE.Color(0xf0e6d4);
+  scene.fog = new THREE.Fog(0xf0e6d4, 22, 40);
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 80);
   camera.position.set(0, 9.5, 11.5);
@@ -236,10 +236,10 @@ export function createChess3D(container, hooks = {}) {
     controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   }
 
-  // Lights
-  const hemi = new THREE.HemisphereLight(0xfff2e0, 0x2a2018, 0.55);
+  // Brighter studio lighting
+  const hemi = new THREE.HemisphereLight(0xfff8ee, 0xc4b8a4, 1.05);
   scene.add(hemi);
-  const key = new THREE.DirectionalLight(0xfff0dd, 1.35);
+  const key = new THREE.DirectionalLight(0xffffff, 1.75);
   key.position.set(5, 12, 6);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
@@ -249,12 +249,14 @@ export function createChess3D(container, hooks = {}) {
   key.shadow.camera.right = key.shadow.camera.top = 10;
   key.shadow.bias = -0.0002;
   scene.add(key);
-  const fill = new THREE.DirectionalLight(0xc8d8ff, 0.35);
+  const fill = new THREE.DirectionalLight(0xe8f0ff, 0.75);
   fill.position.set(-6, 6, -4);
   scene.add(fill);
-  const rim = new THREE.PointLight(0xffd27a, 0.45, 20);
-  rim.position.set(0, 4, -6);
+  const rim = new THREE.PointLight(0xffe2a8, 0.85, 24);
+  rim.position.set(0, 5, -6);
   scene.add(rim);
+  const ambient = new THREE.AmbientLight(0xfff5e8, 0.35);
+  scene.add(ambient);
 
   const root = new THREE.Group();
   scene.add(root);
