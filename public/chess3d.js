@@ -291,6 +291,122 @@ function lathe(points, mat, scale = 1) {
   return m;
 }
 
+/** Staunton-style knight: lathed plinth + extruded horse-head silhouette. */
+function buildKnight(mat, s) {
+  const g = new THREE.Group();
+  // Pedestal
+  g.add(
+    lathe(
+      [
+        [0.01, 0],
+        [0.58, 0],
+        [0.58, 0.12],
+        [0.42, 0.18],
+        [0.38, 0.32],
+        [0.34, 0.42],
+      ],
+      mat,
+      s
+    )
+  );
+
+  // Side profile of a carved horse head (x forward, y up) — unit-ish, then scaled
+  const shape = new THREE.Shape();
+  // Start at chest / base of neck
+  shape.moveTo(0.02, 0.0);
+  shape.bezierCurveTo(0.0, 0.12, -0.02, 0.28, 0.04, 0.42); // back of neck
+  shape.bezierCurveTo(0.02, 0.55, -0.02, 0.68, 0.08, 0.78); // crest
+  shape.bezierCurveTo(0.14, 0.88, 0.22, 0.94, 0.34, 0.92); // mane top → forehead
+  shape.bezierCurveTo(0.42, 0.9, 0.5, 0.84, 0.55, 0.74); // forehead
+  shape.bezierCurveTo(0.6, 0.68, 0.66, 0.62, 0.7, 0.54); // nose bridge
+  shape.bezierCurveTo(0.74, 0.48, 0.76, 0.4, 0.72, 0.36); // muzzle tip
+  shape.bezierCurveTo(0.66, 0.34, 0.58, 0.36, 0.52, 0.4); // mouth / jaw
+  shape.bezierCurveTo(0.46, 0.44, 0.4, 0.46, 0.34, 0.44); // under jaw
+  shape.bezierCurveTo(0.28, 0.4, 0.24, 0.32, 0.22, 0.24); // throat
+  shape.bezierCurveTo(0.2, 0.14, 0.14, 0.06, 0.02, 0.0); // back to chest
+  shape.closePath();
+
+  // Ear (hole-free add as separate shape merged via second mesh)
+  const ear = new THREE.Shape();
+  ear.moveTo(0.28, 0.86);
+  ear.lineTo(0.32, 1.02);
+  ear.lineTo(0.4, 0.9);
+  ear.bezierCurveTo(0.36, 0.88, 0.3, 0.86, 0.28, 0.86);
+
+  const extrude = {
+    depth: 0.38,
+    bevelEnabled: true,
+    bevelThickness: 0.035,
+    bevelSize: 0.03,
+    bevelSegments: 3,
+    curveSegments: 24,
+  };
+  const headGeo = new THREE.ExtrudeGeometry(shape, extrude);
+  headGeo.computeVertexNormals();
+  // Center depth, stand on pedestal
+  headGeo.translate(-0.12, 0.02, -0.19);
+  const head = new THREE.Mesh(headGeo, mat);
+  head.scale.set(s * 1.05, s * 1.05, s * 1.05);
+  head.position.set(-0.02, 0.38 * s + 0.08, 0);
+  // Face along +X (toward opponent files); slight proud angle
+  head.rotation.y = 0;
+  head.castShadow = true;
+  head.receiveShadow = true;
+  g.add(head);
+
+  const earGeo = new THREE.ExtrudeGeometry(ear, {
+    depth: 0.12,
+    bevelEnabled: true,
+    bevelThickness: 0.02,
+    bevelSize: 0.015,
+    bevelSegments: 2,
+  });
+  earGeo.translate(0, 0, -0.06);
+  const earMesh = new THREE.Mesh(earGeo, mat);
+  earMesh.scale.set(s * 1.05, s * 1.05, s * 1.05);
+  earMesh.position.set(-0.02, 0.38 * s + 0.08, 0.02);
+  earMesh.castShadow = true;
+  g.add(earMesh);
+
+  // Snout flare / jaw volume
+  const jaw = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09 * s, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.65),
+    mat
+  );
+  jaw.scale.set(1.5, 0.85, 1.1);
+  jaw.position.set(0.28 * s, 0.55 * s + 0.12, 0);
+  jaw.rotation.z = -0.35;
+  jaw.castShadow = true;
+  g.add(jaw);
+
+  // Eye sockets
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1410,
+    roughness: 0.65,
+    metalness: 0.05,
+  });
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.028 * s, 10, 10), eyeMat);
+  eye.position.set(0.16 * s, 0.72 * s + 0.1, 0.09 * s);
+  g.add(eye);
+  const eye2 = eye.clone();
+  eye2.position.z = -0.09 * s;
+  g.add(eye2);
+
+  // Mane ridge
+  const mane = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.035 * s, 0.22 * s, 4, 8),
+    mat
+  );
+  mane.position.set(-0.02 * s, 0.78 * s + 0.08, 0);
+  mane.rotation.z = 0.55;
+  mane.castShadow = true;
+  g.add(mane);
+
+  // Nose faces -Z (toward opponent for White); Black pieces get +PI later
+  g.rotation.y = -Math.PI / 2;
+  return g;
+}
+
 /** Classic handmade Staunton-inspired silhouettes (sized to fill ~70–85% of a square). */
 function buildPiece(type, color, mats) {
   const mat = color === "w" ? mats.whitePiece : mats.blackPiece;
@@ -311,17 +427,8 @@ function buildPiece(type, color, mats) {
       g.add(batt);
     }
   } else if (type === "n") {
-    g.add(lathe([[0.01, 0], [0.58, 0], [0.58, 0.12], [0.36, 0.2], [0.32, 0.55]], mat, s));
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.55, 0.36), mat);
-    neck.position.set(0.05, 0.52, 0);
-    neck.rotation.z = -0.35;
-    neck.castShadow = true;
-    g.add(neck);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, 0.26), mat);
-    head.position.set(0.16, 0.78, 0);
-    head.rotation.z = -0.5;
-    head.castShadow = true;
-    g.add(head);
+    const knight = buildKnight(mat, s);
+    while (knight.children.length) g.add(knight.children[0]);
   } else if (type === "b") {
     g.add(lathe([[0.01, 0], [0.55, 0], [0.55, 0.12], [0.32, 0.22], [0.26, 0.85], [0.34, 1.05], [0.2, 1.25], [0.01, 1.28]], mat, s));
     const slit = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 }));
