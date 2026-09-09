@@ -342,8 +342,7 @@ export function createChess3D(container, hooks = {}) {
 
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  let dragging = false;
-  let dragMoved = false;
+  let ptrDown = null; // { x, y, az, pol, id }
 
   function clearPieces() {
     while (piecesGroup.children.length) {
@@ -424,34 +423,55 @@ export function createChess3D(container, hooks = {}) {
 
   function pickSquare(clientX, clientY) {
     const rect = renderer.domElement.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return null;
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects(pickables, false);
-    if (hits.length) return hits[0].object.userData.square;
-    // Also allow clicking pieces
+    // Prefer pieces (they're taller), then board squares
     const pieceHits = raycaster.intersectObjects(piecesGroup.children, true);
     if (pieceHits.length) {
       let o = pieceHits[0].object;
       while (o && !o.userData.square) o = o.parent;
       if (o && o.userData.square) return o.userData.square;
     }
+    const hits = raycaster.intersectObjects(pickables, false);
+    if (hits.length) return hits[0].object.userData.square;
     return null;
   }
 
-  renderer.domElement.addEventListener("pointerdown", () => {
-    dragging = true;
-    dragMoved = false;
-  });
-  renderer.domElement.addEventListener("pointermove", (e) => {
-    if (dragging && (Math.abs(e.movementX) > 3 || Math.abs(e.movementY) > 3)) dragMoved = true;
+  // Tap vs orbit: OrbitControls always jiggles a bit on touch — use distance + camera delta
+  const TAP_PX = 18;
+  const TAP_ANGLE = 0.035; // radians (~2°)
+
+  renderer.domElement.addEventListener("pointerdown", (e) => {
+    if (e.button != null && e.button !== 0) return;
+    ptrDown = {
+      x: e.clientX,
+      y: e.clientY,
+      az: controls.getAzimuthalAngle(),
+      pol: controls.getPolarAngle(),
+      id: e.pointerId,
+    };
   });
   renderer.domElement.addEventListener("pointerup", (e) => {
-    if (dragging && !dragMoved) {
-      const sq = pickSquare(e.clientX, e.clientY);
-      if (sq && hooks.onSquareClick) hooks.onSquareClick(sq);
+    if (!ptrDown || (ptrDown.id != null && e.pointerId !== ptrDown.id)) {
+      ptrDown = null;
+      return;
     }
-    dragging = false;
+    const dx = e.clientX - ptrDown.x;
+    const dy = e.clientY - ptrDown.y;
+    const dist = Math.hypot(dx, dy);
+    const dAz = Math.abs(controls.getAzimuthalAngle() - ptrDown.az);
+    const dPol = Math.abs(controls.getPolarAngle() - ptrDown.pol);
+    const wasTap = dist <= TAP_PX && dAz <= TAP_ANGLE && dPol <= TAP_ANGLE;
+    const down = ptrDown;
+    ptrDown = null;
+    if (!wasTap) return;
+    const sq = pickSquare(down.x, down.y) || pickSquare(e.clientX, e.clientY);
+    if (sq && hooks.onSquareClick) hooks.onSquareClick(sq);
+  });
+  renderer.domElement.addEventListener("pointercancel", () => {
+    ptrDown = null;
   });
 
   function animatePieceMove(from, to, { duration = 480 } = {}) {
