@@ -162,12 +162,12 @@ html, body {
 .board-wrap-3d {
   padding: 0;
   overflow: hidden;
-  background: #e9e9eb;
+  background: #f3ead8;
   background-image: none;
-  border: 1px solid #d0d0d4;
+  border: 1px solid #d4c4a8;
   box-shadow:
-    0 16px 40px rgba(40, 40, 48, 0.18),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+    0 16px 40px rgba(80, 60, 30, 0.16),
+    inset 0 0 0 1px rgba(255, 248, 230, 0.7);
 }
 .board3d {
   width: 100%;

@@ -23,13 +23,13 @@ function makeMarble(kind) {
   const bx = bumpC.getContext("2d");
   const white = kind === "white";
 
-  // Base
-  ctx.fillStyle = white ? "#f4f1ea" : "#18181c";
+  // Warm ivory / espresso bases (not pure B&W)
+  ctx.fillStyle = white ? "#f6ecd8" : "#1a1410";
   ctx.fillRect(0, 0, size, size);
   bx.fillStyle = "#888";
   bx.fillRect(0, 0, size, size);
 
-  // Mineral clouds — denser for richer stone
+  // Warm mineral clouds
   for (let i = 0; i < 95; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
@@ -37,13 +37,13 @@ function makeMarble(kind) {
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
     if (white) {
       const dark = Math.random() > 0.55;
-      g.addColorStop(0, dark ? "rgba(195,190,182,0.35)" : "rgba(255,255,255,0.5)");
-      g.addColorStop(0.55, "rgba(230,226,218,0.1)");
-      g.addColorStop(1, "rgba(244,241,234,0)");
+      g.addColorStop(0, dark ? "rgba(210,180,140,0.32)" : "rgba(255,248,230,0.55)");
+      g.addColorStop(0.55, "rgba(235,210,170,0.1)");
+      g.addColorStop(1, "rgba(246,236,216,0)");
     } else {
       const light = Math.random() > 0.5;
-      g.addColorStop(0, light ? "rgba(70,70,80,0.55)" : "rgba(8,8,10,0.45)");
-      g.addColorStop(1, "rgba(18,18,22,0)");
+      g.addColorStop(0, light ? "rgba(90,70,55,0.5)" : "rgba(12,8,6,0.45)");
+      g.addColorStop(1, "rgba(26,20,16,0)");
     }
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -51,7 +51,7 @@ function makeMarble(kind) {
     ctx.fill();
   }
 
-  // Flowing veins — more visible on pieces
+  // Warm-toned veins (gold-grey on ivory, cream on espresso)
   const veinN = white ? 14 : 12;
   for (let v = 0; v < veinN; v++) {
     let x = Math.random() * size;
@@ -70,16 +70,17 @@ function makeMarble(kind) {
     }
     const bold = v < 5;
     if (white) {
-      ctx.strokeStyle = `rgba(110,108,115,${bold ? 0.55 : 0.26})`;
+      // taupe / soft gold-grey veins
+      ctx.strokeStyle = `rgba(${130 + Math.random() * 30},${110 + Math.random() * 25},${85 + Math.random() * 20},${bold ? 0.5 : 0.24})`;
     } else {
-      ctx.strokeStyle = `rgba(210,210,220,${bold ? 0.55 : 0.24})`;
+      // warm cream / champagne veins
+      ctx.strokeStyle = `rgba(${220 + Math.random() * 25},${200 + Math.random() * 25},${170 + Math.random() * 30},${bold ? 0.5 : 0.22})`;
     }
     ctx.lineWidth = bold ? 2.6 + Math.random() * 2.4 : 1.0 + Math.random() * 1.4;
     ctx.lineJoin = "round";
     ctx.stroke();
-    // soft halo
     ctx.save();
-    ctx.globalAlpha = 0.2;
+    ctx.globalAlpha = 0.18;
     ctx.lineWidth += 3;
     ctx.stroke();
     ctx.restore();
@@ -98,8 +99,8 @@ function makeMarble(kind) {
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
     ctx.strokeStyle = white
-      ? `rgba(100,98,105,${0.2 + Math.random() * 0.25})`
-      : `rgba(200,200,210,${0.18 + Math.random() * 0.28})`;
+      ? `rgba(140,115,85,${0.2 + Math.random() * 0.25})`
+      : `rgba(230,210,175,${0.18 + Math.random() * 0.28})`;
     ctx.lineWidth = 0.8 + Math.random() * 1.6;
     ctx.stroke();
     bx.strokeStyle = "rgba(0,0,0,0.35)";
@@ -113,16 +114,16 @@ function makeMarble(kind) {
   // Micro polish grain
   for (let i = 0; i < 1100; i++) {
     ctx.globalAlpha = white ? 0.035 : 0.05;
-    ctx.fillStyle = white ? "#b8b3aa" : "#050508";
+    ctx.fillStyle = white ? "#c4a882" : "#0a0604";
     ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
   }
   ctx.globalAlpha = 1;
 
-  // Gloss wash
+  // Warm gloss wash
   const shine = ctx.createLinearGradient(0, 0, size, size);
-  shine.addColorStop(0, white ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.07)");
+  shine.addColorStop(0, white ? "rgba(255,250,235,0.45)" : "rgba(255,230,200,0.08)");
   shine.addColorStop(0.55, "rgba(255,255,255,0)");
-  shine.addColorStop(1, white ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.03)");
+  shine.addColorStop(1, white ? "rgba(255,245,220,0.18)" : "rgba(255,220,180,0.04)");
   ctx.fillStyle = shine;
   ctx.fillRect(0, 0, size, size);
 
@@ -138,7 +139,7 @@ function makeMarble(kind) {
   return { map, bumpMap };
 }
 
-function stoneMat(maps, { bump = 0.035, rough = 0.17, coat = 0.65, rep = 1.8 } = {}) {
+function stoneMat(maps, { bump = 0.035, rough = 0.17, coat = 0.65, rep = 1.8, tint = 0xffffff } = {}) {
   const map = maps.map.clone();
   const bumpMap = maps.bumpMap.clone();
   map.repeat.set(rep, rep);
@@ -147,7 +148,7 @@ function stoneMat(maps, { bump = 0.035, rough = 0.17, coat = 0.65, rep = 1.8 } =
     map,
     bumpMap,
     bumpScale: bump,
-    color: 0xffffff,
+    color: tint,
     roughness: rough,
     metalness: 0.02,
     clearcoat: coat,
@@ -160,18 +161,18 @@ function makeMats() {
   const white = makeMarble("white");
   const black = makeMarble("black");
   return {
-    lightSq: stoneMat(white, { bump: 0.018, rough: 0.16, coat: 0.7, rep: 2.2 }),
-    darkSq: stoneMat(black, { bump: 0.02, rough: 0.18, coat: 0.6, rep: 2.2 }),
-    frame: stoneMat(white, { bump: 0.028, rough: 0.15, coat: 0.75, rep: 3.0 }),
-    // Stronger bump + slightly larger veins on pieces
-    whitePiece: stoneMat(white, { bump: 0.09, rough: 0.18, coat: 0.75, rep: 1.15 }),
-    blackPiece: stoneMat(black, { bump: 0.1, rough: 0.2, coat: 0.7, rep: 1.15 }),
-    floor: new THREE.MeshStandardMaterial({ color: 0xe8e8ea, roughness: 0.88, metalness: 0 }),
+    // Warm cream / espresso board (not pure B&W)
+    lightSq: stoneMat(white, { bump: 0.018, rough: 0.16, coat: 0.7, rep: 2.2, tint: 0xfff4e4 }),
+    darkSq: stoneMat(black, { bump: 0.02, rough: 0.18, coat: 0.6, rep: 2.2, tint: 0xf0e6dc }),
+    frame: stoneMat(white, { bump: 0.028, rough: 0.15, coat: 0.75, rep: 3.0, tint: 0xffefd5 }),
+    whitePiece: stoneMat(white, { bump: 0.09, rough: 0.18, coat: 0.75, rep: 1.15, tint: 0xfff1dc }),
+    blackPiece: stoneMat(black, { bump: 0.1, rough: 0.2, coat: 0.7, rep: 1.15, tint: 0xf5ebe0 }),
+    floor: new THREE.MeshStandardMaterial({ color: 0xf0e6d6, roughness: 0.88, metalness: 0 }),
     edge: new THREE.MeshPhysicalMaterial({
-      color: 0xe8e4dc,
-      roughness: 0.25,
-      metalness: 0.05,
-      clearcoat: 0.4,
+      color: 0xd4af37,
+      roughness: 0.32,
+      metalness: 0.65,
+      clearcoat: 0.45,
     }),
     highlight: new THREE.MeshBasicMaterial({
       color: 0xf0c94a,
@@ -421,8 +422,9 @@ export function createChess3D(container, hooks = {}) {
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xe8e8ea);
-  scene.fog = new THREE.Fog(0xe8e8ea, 28, 48);
+  // Warm cream studio (less stark grey)
+  scene.background = new THREE.Color(0xf3ead8);
+  scene.fog = new THREE.Fog(0xf3ead8, 28, 48);
 
   const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 80);
   camera.position.set(0, 8.8, 10.8);
@@ -441,9 +443,9 @@ export function createChess3D(container, hooks = {}) {
     controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   }
 
-  // Soft product-studio lighting
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d8dc, 0.9));
-  const key = new THREE.DirectionalLight(0xffffff, 1.7);
+  // Warm product-studio lighting
+  scene.add(new THREE.HemisphereLight(0xfff5e8, 0xd4c4a8, 0.95));
+  const key = new THREE.DirectionalLight(0xfff2dd, 1.75);
   key.position.set(5, 12, 6);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
@@ -455,10 +457,13 @@ export function createChess3D(container, hooks = {}) {
   key.shadow.normalBias = 0.025;
   key.shadow.radius = 3;
   scene.add(key);
-  const fill = new THREE.DirectionalLight(0xf0f2ff, 0.55);
+  const fill = new THREE.DirectionalLight(0xffe8cc, 0.55);
   fill.position.set(-6, 7, -3);
   scene.add(fill);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.32));
+  scene.add(new THREE.AmbientLight(0xfff0e0, 0.34));
+  const warmRim = new THREE.PointLight(0xffd27a, 0.4, 22);
+  warmRim.position.set(0, 4.5, -5);
+  scene.add(warmRim);
 
   const root = new THREE.Group();
   scene.add(root);
