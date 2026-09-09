@@ -1,4 +1,5 @@
 import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
+import { createChess3D } from "./chess3d.js";
 
 const PIECE_SRC = {
   wK: "pieces-carved/wK.png", wQ: "pieces-carved/wQ.png", wR: "pieces-carved/wR.png",
@@ -47,6 +48,7 @@ let pollTimer = null;
 let animating = false;
 
 const boardEl = document.getElementById("board");
+const board3dEl = document.getElementById("board3d");
 const fxLayer = document.getElementById("fx-layer");
 const capturedWhiteEl = document.getElementById("captured-white-pieces");
 const capturedBlackEl = document.getElementById("captured-black-pieces");
@@ -59,6 +61,12 @@ const movesEl = document.getElementById("moves");
 const promoEl = document.getElementById("promo");
 const promoBtns = document.getElementById("promo-btns");
 const hintOut = document.getElementById("hint-out");
+
+const board3d = createChess3D(board3dEl, {
+  onSquareClick(sq) {
+    onSquare(sq);
+  },
+});
 
 function flipped() {
   return you === "b";
@@ -128,11 +136,7 @@ function moveMessage() {
 }
 
 function renderCoords() {
-  document.getElementById("files-top").innerHTML = files().map((f) => `<span>${f}</span>`).join("");
-  document.getElementById("files-bottom").innerHTML = files().map((f) => `<span>${f}</span>`).join("");
-  const ranksHtml = ranks().map((r) => `<span>${r}</span>`).join("");
-  document.getElementById("ranks-left").innerHTML = ranksHtml;
-  document.getElementById("ranks-right").innerHTML = ranksHtml;
+  /* 3D board — coords omitted while the camera can rotate */
 }
 
 function legalTargets(from) {
@@ -140,43 +144,18 @@ function legalTargets(from) {
 }
 
 function renderBoard() {
-  boardEl.innerHTML = "";
+  if (!animating) {
+    board3d.syncFromGame(game, you);
+  }
   const lastFrom = lastMove.slice(0, 2);
   const lastTo = lastMove.slice(2, 4);
   const targets = selected ? legalTargets(selected) : [];
-  const targetSet = new Set(targets.map((m) => m.to));
-
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
-      const sq = squareAt(row, col);
-      const fileIndex = sq.charCodeAt(0) - 97;
-      const rankIndex = Number(sq[1]) - 1;
-      const isLight = (fileIndex + rankIndex) % 2 === 1;
-      const piece = game.get(sq);
-      const el = document.createElement("button");
-      el.type = "button";
-      el.className = `sq ${isLight ? "light" : "dark"}`;
-      el.dataset.square = sq;
-      el.setAttribute("aria-label", sq);
-      if (sq === selected) el.classList.add("selected");
-      if (sq === lastFrom || sq === lastTo) el.classList.add("last");
-      if (targetSet.has(sq)) {
-        el.classList.add("legal");
-        if (piece) el.classList.add("capture");
-      }
-      if (!isLight) {
-        el.style.backgroundPosition = `${(fileIndex / 7) * 100}% ${(rankIndex / 7) * 100}%`;
-      }
-      if (piece) {
-        const code = piece.color + piece.type.toUpperCase();
-        const img = pieceImg(code);
-        img.alt = colourName(piece.color) + " " + (PIECE_NAME[piece.type] || piece.type);
-        el.appendChild(img);
-      }
-      el.addEventListener("click", () => onSquare(sq));
-      boardEl.appendChild(el);
-    }
-  }
+  board3d.setHighlights({
+    selected,
+    legal: targets,
+    lastFrom: lastFrom.length === 2 ? lastFrom : null,
+    lastTo: lastTo.length === 2 ? lastTo : null,
+  });
 }
 
 const CAPTURE_ORDER = { q: 0, r: 1, b: 2, n: 3, p: 4 };
@@ -452,37 +431,25 @@ function spawnFlyer(fromSq, toSq, extraClass) {
 async function animateMove(move) {
   const isCapture = !!move.captured;
   const capSq = captureSquareFor(move);
-
-  // Captures: TNT → shake → explode, then taker slides onto the square
-  if (isCapture && capSq) {
-    await playCaptureFx(capSq);
-  }
-
-  const main = spawnFlyer(move.from, move.to, isCapture ? "capturing" : "");
   const rook = castleRookSquares(move);
-  const rookFx = rook ? spawnFlyer(rook.from, rook.to, "") : null;
-  if (!main) return;
 
-  const duration = isCapture ? 450 : 480;
-  await new Promise((resolve) => {
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      resolve();
-    };
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        main.flyer.style.transform = `translate(${main.endX}px, ${main.endY}px) scale(${isCapture ? 1.06 : 1})`;
-        if (rookFx) {
-          rookFx.flyer.style.transform = `translate(${rookFx.endX}px, ${rookFx.endY}px)`;
-        }
-      });
-    });
-    main.flyer.addEventListener("transitionend", finish, { once: true });
-    setTimeout(finish, duration + 80);
-  });
-  clearFx();
+  // Keep 3D mesh state in sync with pre-move board before animating
+  board3d.syncFromGame(game, you);
+  board3d.setHighlights({});
+
+  if (isCapture && capSq) {
+    await board3d.playCaptureSequence(capSq, move.from, move.to);
+  } else {
+    const slide = board3d.animatePieceMove(move.from, move.to, { duration: 480 });
+    if (rook) {
+      await Promise.all([
+        slide,
+        board3d.animatePieceMove(rook.from, rook.to, { duration: 480 }),
+      ]);
+    } else {
+      await slide;
+    }
+  }
 }
 
 async function tryMove(from, to, promotion) {
@@ -501,7 +468,7 @@ async function tryMove(from, to, promotion) {
   renderBoard();
 
   animating = true;
-  boardEl.classList.add("animating");
+  board3dEl.classList.add("animating");
   try {
     await animateMove(preview);
   } catch {
@@ -510,8 +477,8 @@ async function tryMove(from, to, promotion) {
 
   const move = game.move(spec);
   animating = false;
-  boardEl.classList.remove("animating");
-  clearFx();
+  board3dEl.classList.remove("animating");
+  if (typeof clearFx === "function") clearFx();
   if (!move) {
     renderBoard();
     renderStatus();
@@ -647,7 +614,7 @@ async function replayIncomingMove(moves, lastUci) {
   }
 
   animating = true;
-  boardEl.classList.add("animating");
+  board3dEl.classList.add("animating");
   try {
     await animateMove(verbose);
   } catch {
@@ -655,16 +622,16 @@ async function replayIncomingMove(moves, lastUci) {
   }
   if (!game.move(lastSan)) {
     animating = false;
-    boardEl.classList.remove("animating");
-    clearFx();
+    board3dEl.classList.remove("animating");
+    if (typeof clearFx === "function") clearFx();
     return false;
   }
   lastMove =
     lastUci ||
     verbose.from + verbose.to + (verbose.promotion || "");
   animating = false;
-  boardEl.classList.remove("animating");
-  clearFx();
+  board3dEl.classList.remove("animating");
+  if (typeof clearFx === "function") clearFx();
   writeUrl();
   renderBoard();
   renderStatus();

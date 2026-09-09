@@ -29,17 +29,12 @@
       <div class="captured-pieces" id="captured-black-pieces"></div>
     </div>
 
-    <div class="board-wrap">
-      <div class="files top-files" id="files-top" aria-hidden="true"></div>
-      <div class="board-row">
-        <div class="ranks" id="ranks-left" aria-hidden="true"></div>
-        <div class="board-stage" id="board-stage">
-          <div class="board" id="board" role="grid" aria-label="Chess board"></div>
-          <div class="fx-layer" id="fx-layer" aria-hidden="true"></div>
-        </div>
-        <div class="ranks" id="ranks-right" aria-hidden="true"></div>
-      </div>
-      <div class="files" id="files-bottom" aria-hidden="true"></div>
+    <p class="view-hint">Swipe left/right to rotate · swipe up/down to tilt · pinch to zoom</p>
+    <div class="board-wrap board-wrap-3d">
+      <div class="board3d" id="board3d" role="img" aria-label="3D chess board"></div>
+      <!-- Hidden 2D board kept for promo piece sprites / fallback measure -->
+      <div class="board" id="board" hidden></div>
+      <div class="fx-layer" id="fx-layer" hidden aria-hidden="true"></div>
     </div>
 
     <div class="captured-tray" id="captured-white" aria-label="Pieces captured by White">
