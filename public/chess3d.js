@@ -124,58 +124,59 @@ function lathe(points, mat, scale = 1) {
   return m;
 }
 
-/** Classic handmade Staunton-inspired silhouettes */
+/** Classic handmade Staunton-inspired silhouettes (sized to fill ~70–85% of a square). */
 function buildPiece(type, color, mats) {
   const mat = color === "w" ? mats.whitePiece : mats.blackPiece;
   const g = new THREE.Group();
   g.userData = { type, color };
 
-  const s = 0.22;
+  // Square is 1.0 wide — s≈0.58 gives a solid luxury set footprint
+  const s = 0.58;
   if (type === "p") {
     g.add(lathe([[0.01, 0], [0.55, 0], [0.55, 0.12], [0.35, 0.2], [0.28, 0.55], [0.22, 0.9], [0.38, 1.05], [0.38, 1.2], [0.01, 1.2]], mat, s));
   } else if (type === "r") {
     g.add(lathe([[0.01, 0], [0.6, 0], [0.6, 0.14], [0.4, 0.22], [0.38, 0.95], [0.5, 1.0], [0.5, 1.25], [0.01, 1.25]], mat, s));
     for (let i = 0; i < 4; i++) {
-      const batt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.06), mat);
+      const batt = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.2, 0.15), mat);
       const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-      batt.position.set(Math.cos(a) * 0.09, 0.3, Math.sin(a) * 0.09);
+      batt.position.set(Math.cos(a) * 0.24, 0.78, Math.sin(a) * 0.24);
       batt.castShadow = true;
       g.add(batt);
     }
   } else if (type === "n") {
     g.add(lathe([[0.01, 0], [0.58, 0], [0.58, 0.12], [0.36, 0.2], [0.32, 0.55]], mat, s));
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.14), mat);
-    neck.position.set(0.02, 0.2, 0);
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.55, 0.36), mat);
+    neck.position.set(0.05, 0.52, 0);
     neck.rotation.z = -0.35;
     neck.castShadow = true;
     g.add(neck);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.1), mat);
-    head.position.set(0.06, 0.3, 0);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, 0.26), mat);
+    head.position.set(0.16, 0.78, 0);
     head.rotation.z = -0.5;
     head.castShadow = true;
     g.add(head);
   } else if (type === "b") {
     g.add(lathe([[0.01, 0], [0.55, 0], [0.55, 0.12], [0.32, 0.22], [0.26, 0.85], [0.34, 1.05], [0.2, 1.25], [0.01, 1.28]], mat, s));
-    const slit = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.08, 0.08), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 }));
-    slit.position.y = 0.28;
+    const slit = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 }));
+    slit.position.y = 0.72;
     g.add(slit);
   } else if (type === "q") {
     g.add(lathe([[0.01, 0], [0.62, 0], [0.62, 0.14], [0.38, 0.24], [0.3, 1.0], [0.42, 1.15], [0.28, 1.35], [0.01, 1.38]], mat, s));
     for (let i = 0; i < 6; i++) {
-      const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 10), mat);
+      const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 10), mat);
       const a = (i / 6) * Math.PI * 2;
-      pearl.position.set(Math.cos(a) * 0.08, 0.32, Math.sin(a) * 0.08);
+      pearl.position.set(Math.cos(a) * 0.21, 0.84, Math.sin(a) * 0.21);
       pearl.castShadow = true;
       g.add(pearl);
     }
   } else if (type === "k") {
     g.add(lathe([[0.01, 0], [0.62, 0], [0.62, 0.14], [0.38, 0.24], [0.3, 1.05], [0.4, 1.2], [0.26, 1.4], [0.01, 1.42]], mat, s));
-    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.12, 0.035), mat);
-    crossV.position.y = 0.38;
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.32, 0.09), mat);
+    crossV.position.y = 0.98;
     crossV.castShadow = true;
     g.add(crossV);
-    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.035, 0.035), mat);
-    crossH.position.y = 0.4;
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.09, 0.09), mat);
+    crossH.position.y = 1.04;
     crossH.castShadow = true;
     g.add(crossH);
   }
