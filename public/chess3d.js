@@ -1,6 +1,7 @@
 /**
- * Luxury handmade 3D chess board — Three.js
- * Swipe L/R to rotate, U/D to tilt. Square picking via raycast.
+ * Realistic marble Staunton chess set — Three.js
+ * Swipe L/R rotate, U/D tilt. Raycast square picking.
+ * API: syncFromGame, setHighlights, animatePieceMove, playCaptureSequence, resize, dispose
  */
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -9,256 +10,154 @@ const FILE = "abcdefgh";
 const SQ = 1;
 const BOARD = 8 * SQ;
 const HALF = BOARD / 2;
+const GAP = 0.02; // thin grout between squares
 
-function woodTexture(base, grain, opts = {}) {
-  const size = opts.size || 256;
-  const c = document.createElement("canvas");
-  c.width = c.height = size;
-  const ctx = c.getContext("2d");
-  ctx.fillStyle = base;
-  ctx.fillRect(0, 0, size, size);
-  for (let i = 0; i < size; i++) {
-    const n = Math.sin(i * 0.09) * 8 + Math.sin(i * 0.31) * 3;
-    ctx.strokeStyle = grain;
-    ctx.globalAlpha = 0.045 + (i % 7) * 0.004;
-    ctx.beginPath();
-    ctx.moveTo(0, i + n);
-    ctx.bezierCurveTo(size * 0.3, i + n * 0.4, size * 0.7, i - n * 0.5, size, i + n * 0.2);
-    ctx.stroke();
-  }
-  for (let i = 0; i < 400; i++) {
-    ctx.globalAlpha = 0.03;
-    ctx.fillStyle = opts.speck || "#000";
-    ctx.fillRect(Math.random() * size, Math.random() * size, 1.2, 1.2);
-  }
-  ctx.globalAlpha = 1;
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = 8;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-/**
- * Clean luxury marble (Carrara / Nero Marquina style).
- * Soft elegant veins — not muddy or over-busy.
- */
-function marbleMaps(kind = "white") {
+/** Elegant Carrara (white) or Nero (black) marble maps */
+function makeMarble(kind) {
   const size = 1024;
-  const c = document.createElement("canvas");
-  c.width = c.height = size;
-  const ctx = c.getContext("2d");
-  const bump = document.createElement("canvas");
-  bump.width = bump.height = size;
-  const bctx = bump.getContext("2d");
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const bumpC = document.createElement("canvas");
+  bumpC.width = bumpC.height = size;
+  const bx = bumpC.getContext("2d");
+  const white = kind === "white";
 
-  const isWhite = kind === "white";
+  // Base
+  ctx.fillStyle = white ? "#f4f1ea" : "#18181c";
+  ctx.fillRect(0, 0, size, size);
+  bx.fillStyle = "#888";
+  bx.fillRect(0, 0, size, size);
 
-  // Pure stone base
-  if (isWhite) {
-    ctx.fillStyle = "#f5f2ec";
-    ctx.fillRect(0, 0, size, size);
-    const g = ctx.createRadialGradient(size * 0.3, size * 0.2, 0, size * 0.5, size * 0.5, size * 0.8);
-    g.addColorStop(0, "rgba(255,255,255,0.55)");
-    g.addColorStop(1, "rgba(230,226,218,0.35)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, size, size);
-  } else {
-    ctx.fillStyle = "#1c1c20";
-    ctx.fillRect(0, 0, size, size);
-    const g = ctx.createRadialGradient(size * 0.4, size * 0.35, 0, size * 0.5, size * 0.5, size * 0.75);
-    g.addColorStop(0, "rgba(45,45,52,0.6)");
-    g.addColorStop(1, "rgba(10,10,12,0.4)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, size, size);
-  }
-  bctx.fillStyle = "#909090";
-  bctx.fillRect(0, 0, size, size);
-
-  // Soft mottling only
-  for (let i = 0; i < 70; i++) {
+  // Soft mineral clouds
+  for (let i = 0; i < 55; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const r = 40 + Math.random() * 120;
-    const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
-    if (isWhite) {
-      grd.addColorStop(0, "rgba(210,205,198,0.2)");
-      grd.addColorStop(1, "rgba(245,242,236,0)");
+    const r = 50 + Math.random() * 140;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    if (white) {
+      g.addColorStop(0, "rgba(255,255,255,0.45)");
+      g.addColorStop(0.5, "rgba(220,216,208,0.12)");
+      g.addColorStop(1, "rgba(244,241,234,0)");
     } else {
-      grd.addColorStop(0, "rgba(55,55,62,0.35)");
-      grd.addColorStop(1, "rgba(20,20,24,0)");
+      g.addColorStop(0, "rgba(50,50,58,0.5)");
+      g.addColorStop(1, "rgba(18,18,22,0)");
     }
-    ctx.fillStyle = grd;
+    ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Elegant flowing veins (fewer, cleaner)
-  function vein(alpha, width) {
+  // Flowing veins — restrained, like real Carrara / Nero
+  const veinN = white ? 9 : 8;
+  for (let v = 0; v < veinN; v++) {
     let x = Math.random() * size;
-    let y = Math.random() * size * 0.2 - 40;
+    let y = -30;
     ctx.beginPath();
-    bctx.beginPath();
+    bx.beginPath();
     ctx.moveTo(x, y);
-    bctx.moveTo(x, y);
-    for (let s = 0; s < 16; s++) {
-      x += (Math.random() - 0.5) * 50;
-      y += 25 + Math.random() * 40;
-      const cx = x + (Math.random() - 0.5) * 60;
-      const cy = y - 10;
-      ctx.quadraticCurveTo(cx, cy, x, y);
-      bctx.quadraticCurveTo(cx, cy, x, y);
+    bx.moveTo(x, y);
+    for (let s = 0; s < 18; s++) {
+      x += (Math.random() - 0.5) * 55;
+      y += 20 + Math.random() * 45;
+      const cpx = x + (Math.random() - 0.5) * 70;
+      const cpy = y - 8;
+      ctx.quadraticCurveTo(cpx, cpy, x, y);
+      bx.quadraticCurveTo(cpx, cpy, x, y);
     }
-    if (isWhite) {
-      ctx.strokeStyle = `rgba(120,118,122,${alpha})`;
+    const bold = v < 3;
+    if (white) {
+      ctx.strokeStyle = `rgba(130,128,135,${bold ? 0.42 : 0.18})`;
     } else {
-      ctx.strokeStyle = `rgba(210,210,218,${alpha})`;
+      ctx.strokeStyle = `rgba(200,200,210,${bold ? 0.4 : 0.16})`;
     }
-    ctx.lineWidth = width;
+    ctx.lineWidth = bold ? 2.2 + Math.random() * 1.8 : 0.8 + Math.random();
     ctx.lineJoin = "round";
     ctx.stroke();
-    bctx.strokeStyle = `rgba(0,0,0,${0.25 + alpha * 0.4})`;
-    bctx.lineWidth = width + 1.5;
-    bctx.stroke();
+    bx.strokeStyle = `rgba(0,0,0,${bold ? 0.45 : 0.2})`;
+    bx.lineWidth = ctx.lineWidth + 1;
+    bx.stroke();
   }
-  for (let i = 0; i < 7; i++) vein(0.35 + Math.random() * 0.25, 1.8 + Math.random() * 2.2);
-  for (let i = 0; i < 12; i++) vein(0.12 + Math.random() * 0.15, 0.7 + Math.random() * 1.2);
 
-  // Fine polish grain
-  for (let i = 0; i < 800; i++) {
-    ctx.globalAlpha = isWhite ? 0.03 : 0.04;
-    ctx.fillStyle = isWhite ? "#c8c4bc" : "#0a0a0c";
+  // Micro polish grain
+  for (let i = 0; i < 600; i++) {
+    ctx.globalAlpha = white ? 0.025 : 0.04;
+    ctx.fillStyle = white ? "#bbb6ae" : "#050508";
     ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
   }
   ctx.globalAlpha = 1;
 
-  // Specular wash
+  // Gloss wash
   const shine = ctx.createLinearGradient(0, 0, size, size);
-  shine.addColorStop(0, isWhite ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.08)");
-  shine.addColorStop(0.5, "rgba(255,255,255,0)");
-  shine.addColorStop(1, isWhite ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)");
+  shine.addColorStop(0, white ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.07)");
+  shine.addColorStop(0.55, "rgba(255,255,255,0)");
+  shine.addColorStop(1, white ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.03)");
   ctx.fillStyle = shine;
   ctx.fillRect(0, 0, size, size);
 
-  const map = new THREE.CanvasTexture(c);
-  map.wrapS = map.wrapT = THREE.RepeatWrapping;
-  map.repeat.set(1.6, 1.6);
-  map.anisotropy = 8;
+  const map = new THREE.CanvasTexture(canvas);
   map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.anisotropy = 8;
 
-  const bumpMap = new THREE.CanvasTexture(bump);
+  const bumpMap = new THREE.CanvasTexture(bumpC);
   bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
-  bumpMap.repeat.set(1.6, 1.6);
   bumpMap.anisotropy = 8;
 
   return { map, bumpMap };
 }
 
-function makeMats() {
-  // Clean procedural Carrara / Nero Marquina only (no muddy photo crops)
-  const whiteMarble = marbleMaps("white");
-  const blackMarble = marbleMaps("black");
-  const borderMarble = marbleMaps("white");
-  borderMarble.map.repeat.set(2.5, 2.5);
-  borderMarble.bumpMap.repeat.set(2.5, 2.5);
-
-  const whitePiece = new THREE.MeshPhysicalMaterial({
-    map: whiteMarble.map,
-    bumpMap: whiteMarble.bumpMap,
-    bumpScale: 0.04,
+function stoneMat(maps, { bump = 0.035, rough = 0.17, coat = 0.65, rep = 1.8 } = {}) {
+  const map = maps.map.clone();
+  const bumpMap = maps.bumpMap.clone();
+  map.repeat.set(rep, rep);
+  bumpMap.repeat.set(rep, rep);
+  return new THREE.MeshPhysicalMaterial({
+    map,
+    bumpMap,
+    bumpScale: bump,
     color: 0xffffff,
-    roughness: 0.16,
+    roughness: rough,
     metalness: 0.02,
-    clearcoat: 0.7,
+    clearcoat: coat,
     clearcoatRoughness: 0.12,
-    envMapIntensity: 1.15,
-  });
-
-  const blackPiece = new THREE.MeshPhysicalMaterial({
-    map: blackMarble.map,
-    bumpMap: blackMarble.bumpMap,
-    bumpScale: 0.045,
-    color: 0xffffff,
-    roughness: 0.18,
-    metalness: 0.03,
-    clearcoat: 0.65,
-    clearcoatRoughness: 0.14,
     envMapIntensity: 1.1,
   });
+}
 
-  const sqLightMap = whiteMarble.map.clone();
-  sqLightMap.repeat.set(2.4, 2.4);
-  const sqLightBump = whiteMarble.bumpMap.clone();
-  sqLightBump.repeat.set(2.4, 2.4);
-  const sqDarkMap = blackMarble.map.clone();
-  sqDarkMap.repeat.set(2.4, 2.4);
-  const sqDarkBump = blackMarble.bumpMap.clone();
-  sqDarkBump.repeat.set(2.4, 2.4);
-
+function makeMats() {
+  const white = makeMarble("white");
+  const black = makeMarble("black");
   return {
-    lightSq: new THREE.MeshPhysicalMaterial({
-      map: sqLightMap,
-      bumpMap: sqLightBump,
-      bumpScale: 0.02,
-      color: 0xffffff,
-      roughness: 0.18,
-      metalness: 0.02,
-      clearcoat: 0.6,
-      clearcoatRoughness: 0.15,
-      envMapIntensity: 1.05,
+    lightSq: stoneMat(white, { bump: 0.018, rough: 0.16, coat: 0.7, rep: 2.2 }),
+    darkSq: stoneMat(black, { bump: 0.02, rough: 0.18, coat: 0.6, rep: 2.2 }),
+    frame: stoneMat(white, { bump: 0.028, rough: 0.15, coat: 0.75, rep: 3.0 }),
+    whitePiece: stoneMat(white, { bump: 0.04, rough: 0.14, coat: 0.8, rep: 1.5 }),
+    blackPiece: stoneMat(black, { bump: 0.045, rough: 0.16, coat: 0.75, rep: 1.5 }),
+    floor: new THREE.MeshStandardMaterial({ color: 0xe8e8ea, roughness: 0.88, metalness: 0 }),
+    edge: new THREE.MeshPhysicalMaterial({
+      color: 0xe8e4dc,
+      roughness: 0.25,
+      metalness: 0.05,
+      clearcoat: 0.4,
     }),
-    darkSq: new THREE.MeshPhysicalMaterial({
-      map: sqDarkMap,
-      bumpMap: sqDarkBump,
-      bumpScale: 0.022,
-      color: 0xffffff,
-      roughness: 0.2,
-      metalness: 0.03,
-      clearcoat: 0.55,
-      clearcoatRoughness: 0.16,
-      envMapIntensity: 1.0,
-    }),
-    frame: new THREE.MeshPhysicalMaterial({
-      map: borderMarble.map,
-      bumpMap: borderMarble.bumpMap,
-      bumpScale: 0.03,
-      color: 0xffffff,
-      roughness: 0.16,
-      metalness: 0.02,
-      clearcoat: 0.7,
-      clearcoatRoughness: 0.12,
-      envMapIntensity: 1.1,
-    }),
-    gold: new THREE.MeshPhysicalMaterial({
-      color: 0xd8d0c4,
-      roughness: 0.4,
-      metalness: 0.15,
-      clearcoat: 0.25,
-    }),
-    felt: new THREE.MeshStandardMaterial({
-      color: 0xececef,
-      roughness: 0.92,
-      metalness: 0,
-    }),
-    whitePiece,
-    blackPiece,
     highlight: new THREE.MeshBasicMaterial({
-      color: 0xf6c945,
+      color: 0xf0c94a,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.3,
       depthWrite: false,
     }),
     lastMove: new THREE.MeshBasicMaterial({
-      color: 0xe8b03c,
+      color: 0xe0a830,
       transparent: true,
-      opacity: 0.2,
+      opacity: 0.22,
       depthWrite: false,
     }),
     legal: new THREE.MeshBasicMaterial({
-      color: 0x2a5a40,
+      color: 0x1f6b45,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.3,
       depthWrite: false,
     }),
     capture: new THREE.MeshBasicMaterial({
@@ -270,9 +169,9 @@ function makeMats() {
   };
 }
 
-function lathe(points, mat, scale = 1) {
+function lathe(points, mat, scale) {
   const pts = points.map(([x, y]) => new THREE.Vector2(x * scale, y * scale));
-  const geo = new THREE.LatheGeometry(pts, 48);
+  const geo = new THREE.LatheGeometry(pts, 64);
   geo.computeVertexNormals();
   const m = new THREE.Mesh(geo, mat);
   m.castShadow = true;
@@ -280,171 +179,189 @@ function lathe(points, mat, scale = 1) {
   return m;
 }
 
-/** Staunton-style knight: lathed plinth + extruded horse-head silhouette. */
-function buildKnight(mat, s) {
-  const g = new THREE.Group();
-  // Pedestal
-  g.add(
-    lathe(
-      [
-        [0.01, 0],
-        [0.58, 0],
-        [0.58, 0.12],
-        [0.42, 0.18],
-        [0.38, 0.32],
-        [0.34, 0.42],
-      ],
-      mat,
-      s
-    )
-  );
-
-  // Side profile of a carved horse head (x forward, y up) — unit-ish, then scaled
-  const shape = new THREE.Shape();
-  // Start at chest / base of neck
-  shape.moveTo(0.02, 0.0);
-  shape.bezierCurveTo(0.0, 0.12, -0.02, 0.28, 0.04, 0.42); // back of neck
-  shape.bezierCurveTo(0.02, 0.55, -0.02, 0.68, 0.08, 0.78); // crest
-  shape.bezierCurveTo(0.14, 0.88, 0.22, 0.94, 0.34, 0.92); // mane top → forehead
-  shape.bezierCurveTo(0.42, 0.9, 0.5, 0.84, 0.55, 0.74); // forehead
-  shape.bezierCurveTo(0.6, 0.68, 0.66, 0.62, 0.7, 0.54); // nose bridge
-  shape.bezierCurveTo(0.74, 0.48, 0.76, 0.4, 0.72, 0.36); // muzzle tip
-  shape.bezierCurveTo(0.66, 0.34, 0.58, 0.36, 0.52, 0.4); // mouth / jaw
-  shape.bezierCurveTo(0.46, 0.44, 0.4, 0.46, 0.34, 0.44); // under jaw
-  shape.bezierCurveTo(0.28, 0.4, 0.24, 0.32, 0.22, 0.24); // throat
-  shape.bezierCurveTo(0.2, 0.14, 0.14, 0.06, 0.02, 0.0); // back to chest
-  shape.closePath();
-
-  // Ear (hole-free add as separate shape merged via second mesh)
-  const ear = new THREE.Shape();
-  ear.moveTo(0.28, 0.86);
-  ear.lineTo(0.32, 1.02);
-  ear.lineTo(0.4, 0.9);
-  ear.bezierCurveTo(0.36, 0.88, 0.3, 0.86, 0.28, 0.86);
-
-  const extrude = {
-    depth: 0.38,
-    bevelEnabled: true,
-    bevelThickness: 0.035,
-    bevelSize: 0.03,
-    bevelSegments: 3,
-    curveSegments: 24,
-  };
-  const headGeo = new THREE.ExtrudeGeometry(shape, extrude);
-  headGeo.computeVertexNormals();
-  // Center depth, stand on pedestal
-  headGeo.translate(-0.12, 0.02, -0.19);
-  const head = new THREE.Mesh(headGeo, mat);
-  head.scale.set(s * 1.05, s * 1.05, s * 1.05);
-  head.position.set(-0.02, 0.38 * s + 0.08, 0);
-  // Face along +X (toward opponent files); slight proud angle
-  head.rotation.y = 0;
-  head.castShadow = true;
-  head.receiveShadow = true;
-  g.add(head);
-
-  const earGeo = new THREE.ExtrudeGeometry(ear, {
-    depth: 0.12,
-    bevelEnabled: true,
-    bevelThickness: 0.02,
-    bevelSize: 0.015,
-    bevelSegments: 2,
-  });
-  earGeo.translate(0, 0, -0.06);
-  const earMesh = new THREE.Mesh(earGeo, mat);
-  earMesh.scale.set(s * 1.05, s * 1.05, s * 1.05);
-  earMesh.position.set(-0.02, 0.38 * s + 0.08, 0.02);
-  earMesh.castShadow = true;
-  g.add(earMesh);
-
-  // Snout flare / jaw volume
-  const jaw = new THREE.Mesh(
-    new THREE.SphereGeometry(0.09 * s, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.65),
-    mat
-  );
-  jaw.scale.set(1.5, 0.85, 1.1);
-  jaw.position.set(0.28 * s, 0.55 * s + 0.12, 0);
-  jaw.rotation.z = -0.35;
-  jaw.castShadow = true;
-  g.add(jaw);
-
-  // Eye sockets
-  const eyeMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1410,
-    roughness: 0.65,
-    metalness: 0.05,
-  });
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.028 * s, 10, 10), eyeMat);
-  eye.position.set(0.16 * s, 0.72 * s + 0.1, 0.09 * s);
-  g.add(eye);
-  const eye2 = eye.clone();
-  eye2.position.z = -0.09 * s;
-  g.add(eye2);
-
-  // Mane ridge
-  const mane = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.035 * s, 0.22 * s, 4, 8),
-    mat
-  );
-  mane.position.set(-0.02 * s, 0.78 * s + 0.08, 0);
-  mane.rotation.z = 0.55;
-  mane.castShadow = true;
-  g.add(mane);
-
-  // Nose faces -Z (toward opponent for White); Black pieces get +PI later
-  g.rotation.y = -Math.PI / 2;
-  return g;
-}
-
-/** Classic handmade Staunton-inspired silhouettes (sized to fill ~70–85% of a square). */
+/** Classic Staunton proportions (relative height ~ pawn 1.0 … king 1.55). */
 function buildPiece(type, color, mats) {
   const mat = color === "w" ? mats.whitePiece : mats.blackPiece;
   const g = new THREE.Group();
   g.userData = { type, color };
+  const s = 0.52; // footprint vs square size 1.0
 
-  // Square is 1.0 wide — s≈0.58 gives a solid luxury set footprint
-  const s = 0.58;
   if (type === "p") {
-    g.add(lathe([[0.01, 0], [0.55, 0], [0.55, 0.12], [0.35, 0.2], [0.28, 0.55], [0.22, 0.9], [0.38, 1.05], [0.38, 1.2], [0.01, 1.2]], mat, s));
+    g.add(
+      lathe(
+        [
+          [0.02, 0],
+          [0.52, 0],
+          [0.52, 0.1],
+          [0.38, 0.16],
+          [0.3, 0.45],
+          [0.24, 0.75],
+          [0.36, 0.9],
+          [0.36, 1.05],
+          [0.02, 1.05],
+        ],
+        mat,
+        s
+      )
+    );
   } else if (type === "r") {
-    g.add(lathe([[0.01, 0], [0.6, 0], [0.6, 0.14], [0.4, 0.22], [0.38, 0.95], [0.5, 1.0], [0.5, 1.25], [0.01, 1.25]], mat, s));
+    g.add(
+      lathe(
+        [
+          [0.02, 0],
+          [0.55, 0],
+          [0.55, 0.1],
+          [0.4, 0.18],
+          [0.36, 0.85],
+          [0.48, 0.9],
+          [0.48, 1.12],
+          [0.02, 1.12],
+        ],
+        mat,
+        s
+      )
+    );
     for (let i = 0; i < 4; i++) {
-      const batt = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.2, 0.15), mat);
+      const batt = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.14), mat);
       const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-      batt.position.set(Math.cos(a) * 0.24, 0.78, Math.sin(a) * 0.24);
+      batt.position.set(Math.cos(a) * 0.2, 0.68, Math.sin(a) * 0.2);
       batt.castShadow = true;
       g.add(batt);
     }
   } else if (type === "n") {
-    const knight = buildKnight(mat, s);
-    while (knight.children.length) g.add(knight.children[0]);
+    // Clean pedestal
+    g.add(
+      lathe(
+        [
+          [0.02, 0],
+          [0.54, 0],
+          [0.54, 0.1],
+          [0.4, 0.16],
+          [0.34, 0.38],
+        ],
+        mat,
+        s
+      )
+    );
+    // Horse head — smooth silhouette extrude
+    const sh = new THREE.Shape();
+    sh.moveTo(0.0, 0.0);
+    sh.bezierCurveTo(-0.02, 0.15, 0.0, 0.35, 0.06, 0.5);
+    sh.bezierCurveTo(0.05, 0.62, 0.02, 0.72, 0.1, 0.82);
+    sh.bezierCurveTo(0.18, 0.92, 0.28, 0.96, 0.4, 0.92);
+    sh.bezierCurveTo(0.5, 0.88, 0.58, 0.78, 0.62, 0.66);
+    sh.bezierCurveTo(0.68, 0.58, 0.72, 0.48, 0.68, 0.42);
+    sh.bezierCurveTo(0.6, 0.4, 0.5, 0.44, 0.42, 0.48);
+    sh.bezierCurveTo(0.34, 0.5, 0.28, 0.42, 0.24, 0.3);
+    sh.bezierCurveTo(0.2, 0.16, 0.12, 0.05, 0.0, 0.0);
+    const head = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(sh, {
+        depth: 0.32,
+        bevelEnabled: true,
+        bevelThickness: 0.04,
+        bevelSize: 0.035,
+        bevelSegments: 4,
+        curveSegments: 28,
+      }),
+      mat
+    );
+    head.geometry.translate(-0.1, 0, -0.16);
+    head.scale.setScalar(s * 1.05);
+    head.position.set(0, 0.22, 0);
+    head.rotation.y = -Math.PI / 2;
+    head.castShadow = true;
+    head.receiveShadow = true;
+    g.add(head);
+    // Ear
+    const earSh = new THREE.Shape();
+    earSh.moveTo(0, 0);
+    earSh.lineTo(0.04, 0.16);
+    earSh.lineTo(0.1, 0.04);
+    earSh.closePath();
+    const ear = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(earSh, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 2 }),
+      mat
+    );
+    ear.geometry.translate(0, 0, -0.04);
+    ear.scale.setScalar(s * 1.05);
+    ear.position.set(0.02, 0.22 + 0.82 * s * 1.05, 0.04);
+    ear.rotation.y = -Math.PI / 2;
+    ear.castShadow = true;
+    g.add(ear);
   } else if (type === "b") {
-    g.add(lathe([[0.01, 0], [0.55, 0], [0.55, 0.12], [0.32, 0.22], [0.26, 0.85], [0.34, 1.05], [0.2, 1.25], [0.01, 1.28]], mat, s));
-    const slit = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 }));
-    slit.position.y = 0.72;
+    g.add(
+      lathe(
+        [
+          [0.02, 0],
+          [0.52, 0],
+          [0.52, 0.1],
+          [0.36, 0.18],
+          [0.26, 0.7],
+          [0.32, 0.9],
+          [0.18, 1.15],
+          [0.02, 1.18],
+        ],
+        mat,
+        s
+      )
+    );
+    const slit = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, 0.14, 0.14),
+      new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.55 })
+    );
+    slit.position.y = 0.58;
     g.add(slit);
   } else if (type === "q") {
-    g.add(lathe([[0.01, 0], [0.62, 0], [0.62, 0.14], [0.38, 0.24], [0.3, 1.0], [0.42, 1.15], [0.28, 1.35], [0.01, 1.38]], mat, s));
-    for (let i = 0; i < 6; i++) {
-      const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 10), mat);
-      const a = (i / 6) * Math.PI * 2;
-      pearl.position.set(Math.cos(a) * 0.21, 0.84, Math.sin(a) * 0.21);
+    g.add(
+      lathe(
+        [
+          [0.02, 0],
+          [0.58, 0],
+          [0.58, 0.1],
+          [0.4, 0.2],
+          [0.3, 0.85],
+          [0.4, 1.0],
+          [0.26, 1.22],
+          [0.02, 1.25],
+        ],
+        mat,
+        s
+      )
+    );
+    for (let i = 0; i < 8; i++) {
+      const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 12), mat);
+      const a = (i / 8) * Math.PI * 2;
+      pearl.position.set(Math.cos(a) * 0.16, 0.72, Math.sin(a) * 0.16);
       pearl.castShadow = true;
       g.add(pearl);
     }
   } else if (type === "k") {
-    g.add(lathe([[0.01, 0], [0.62, 0], [0.62, 0.14], [0.38, 0.24], [0.3, 1.05], [0.4, 1.2], [0.26, 1.4], [0.01, 1.42]], mat, s));
-    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.32, 0.09), mat);
-    crossV.position.y = 0.98;
+    g.add(
+      lathe(
+        [
+          [0.02, 0],
+          [0.58, 0],
+          [0.58, 0.1],
+          [0.4, 0.2],
+          [0.3, 0.9],
+          [0.4, 1.05],
+          [0.24, 1.28],
+          [0.02, 1.3],
+        ],
+        mat,
+        s
+      )
+    );
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.07), mat);
+    crossV.position.y = 0.82;
     crossV.castShadow = true;
     g.add(crossV);
-    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.09, 0.09), mat);
-    crossH.position.y = 1.04;
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.07, 0.07), mat);
+    crossH.position.y = 0.88;
     crossH.castShadow = true;
     g.add(crossH);
   }
 
-  // Sit on square
   const box = new THREE.Box3().setFromObject(g);
   g.position.y = -box.min.y;
   return g;
@@ -459,13 +376,6 @@ function sqToWorld(sq) {
   };
 }
 
-function worldToSq(x, z) {
-  const file = Math.floor(x + HALF);
-  const rank = Math.floor(-z + HALF);
-  if (file < 0 || file > 7 || rank < 0 || rank > 7) return null;
-  return FILE[file] + (rank + 1);
-}
-
 export function createChess3D(container, hooks = {}) {
   const mats = makeMats();
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -473,110 +383,105 @@ export function createChess3D(container, hooks = {}) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.28;
+  renderer.toneMappingExposure = 1.2;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  // Soft grey studio like the reference marble-set photo
-  scene.background = new THREE.Color(0xe6e6e8);
-  scene.fog = new THREE.Fog(0xe6e6e8, 26, 45);
+  scene.background = new THREE.Color(0xe8e8ea);
+  scene.fog = new THREE.Fog(0xe8e8ea, 28, 48);
 
-  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 80);
-  camera.position.set(0, 9.2, 11.2);
+  const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 80);
+  camera.position.set(0, 8.8, 10.8);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enablePan = false;
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.minDistance = 8;
-  controls.maxDistance = 18;
-  controls.minPolarAngle = 0.35;
-  controls.maxPolarAngle = 1.25;
-  controls.target.set(0, 0.2, 0);
-  controls.rotateSpeed = 0.65;
+  controls.minDistance = 7.5;
+  controls.maxDistance = 16;
+  controls.minPolarAngle = 0.4;
+  controls.maxPolarAngle = 1.2;
+  controls.target.set(0, 0.15, 0);
+  controls.rotateSpeed = 0.6;
   if (THREE.TOUCH) {
     controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   }
 
-  // Clean cool-white studio lighting (matches product photo)
-  const hemi = new THREE.HemisphereLight(0xffffff, 0xd0d0d4, 0.85);
-  scene.add(hemi);
-  const key = new THREE.DirectionalLight(0xffffff, 1.85);
-  key.position.set(5.5, 13, 6.5);
+  // Soft product-studio lighting
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d8dc, 0.9));
+  const key = new THREE.DirectionalLight(0xffffff, 1.7);
+  key.position.set(5, 12, 6);
   key.castShadow = true;
-  key.shadow.mapSize.set(4096, 4096);
+  key.shadow.mapSize.set(2048, 2048);
   key.shadow.camera.near = 1;
-  key.shadow.camera.far = 40;
-  key.shadow.camera.left = key.shadow.camera.bottom = -11;
-  key.shadow.camera.right = key.shadow.camera.top = 11;
-  key.shadow.bias = -0.00015;
-  key.shadow.normalBias = 0.02;
-  key.shadow.radius = 2.2;
+  key.shadow.camera.far = 35;
+  key.shadow.camera.left = key.shadow.camera.bottom = -10;
+  key.shadow.camera.right = key.shadow.camera.top = 10;
+  key.shadow.bias = -0.0002;
+  key.shadow.normalBias = 0.025;
+  key.shadow.radius = 3;
   scene.add(key);
-  const key2 = new THREE.DirectionalLight(0xf5f5ff, 0.45);
-  key2.position.set(-5, 9, 2);
-  key2.castShadow = true;
-  key2.shadow.mapSize.set(2048, 2048);
-  key2.shadow.camera.near = 1;
-  key2.shadow.camera.far = 35;
-  key2.shadow.camera.left = key2.shadow.camera.bottom = -10;
-  key2.shadow.camera.right = key2.shadow.camera.top = 10;
-  key2.shadow.bias = -0.0002;
-  key2.shadow.radius = 4;
-  scene.add(key2);
-  const fill = new THREE.DirectionalLight(0xffffff, 0.5);
-  fill.position.set(-4, 5, -5);
+  const fill = new THREE.DirectionalLight(0xf0f2ff, 0.55);
+  fill.position.set(-6, 7, -3);
   scene.add(fill);
-  const ambient = new THREE.AmbientLight(0xffffff, 0.28);
-  scene.add(ambient);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.32));
 
   const root = new THREE.Group();
   scene.add(root);
 
-  // Soft studio table
-  const table = new THREE.Mesh(new THREE.CylinderGeometry(7.4, 7.4, 0.12, 64), mats.felt);
-  table.position.y = -0.48;
-  table.receiveShadow = true;
-  root.add(table);
+  // Soft floor
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(8, 64), mats.floor);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.42;
+  floor.receiveShadow = true;
+  root.add(floor);
 
-  // Thick white marble border (real-set style)
-  const plinth = new THREE.Mesh(new THREE.BoxGeometry(BOARD + 1.55, 0.4, BOARD + 1.55), mats.frame);
-  plinth.position.y = -0.1;
+  // White marble plinth + rim (like real set)
+  const plinthH = 0.36;
+  const plinth = new THREE.Mesh(
+    new THREE.BoxGeometry(BOARD + 1.5, plinthH, BOARD + 1.5),
+    mats.frame
+  );
+  plinth.position.y = -plinthH / 2 + 0.02;
   plinth.castShadow = true;
   plinth.receiveShadow = true;
   root.add(plinth);
 
-  const rimFrame = new THREE.Mesh(new THREE.BoxGeometry(BOARD + 0.9, 0.18, BOARD + 0.9), mats.frame);
-  rimFrame.position.y = 0.15;
-  rimFrame.castShadow = true;
-  rimFrame.receiveShadow = true;
-  root.add(rimFrame);
-
-  // Subtle edge line only
-  const inlay = new THREE.Mesh(
-    new THREE.BoxGeometry(BOARD + 0.06, 0.012, BOARD + 0.06),
-    mats.gold
+  const rim = new THREE.Mesh(
+    new THREE.BoxGeometry(BOARD + 0.72, 0.16, BOARD + 0.72),
+    mats.frame
   );
-  inlay.position.y = 0.255;
-  root.add(inlay);
+  rim.position.y = 0.12;
+  rim.castShadow = true;
+  rim.receiveShadow = true;
+  root.add(rim);
 
-  // Squares + pick meshes
+  // Playing surface bed (slightly recessed)
+  const bed = new THREE.Mesh(
+    new THREE.BoxGeometry(BOARD + 0.04, 0.06, BOARD + 0.04),
+    mats.edge
+  );
+  bed.position.y = 0.18;
+  bed.receiveShadow = true;
+  root.add(bed);
+
   const squares = new THREE.Group();
   root.add(squares);
   const pickables = [];
   const overlays = new Map();
+  const sqSize = SQ - GAP;
 
   for (let rank = 0; rank < 8; rank++) {
     for (let file = 0; file < 8; file++) {
       const light = (file + rank) % 2 === 1;
       const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(SQ * 0.98, 0.12, SQ * 0.98),
+        new THREE.BoxGeometry(sqSize, 0.08, sqSize),
         light ? mats.lightSq : mats.darkSq
       );
       const x = file * SQ + SQ / 2 - HALF;
       const z = -(rank * SQ + SQ / 2 - HALF);
-      mesh.position.set(x, 0.2, z);
+      mesh.position.set(x, 0.24, z);
       mesh.receiveShadow = true;
       mesh.castShadow = true;
       const sq = FILE[file] + (rank + 1);
@@ -584,40 +489,24 @@ export function createChess3D(container, hooks = {}) {
       squares.add(mesh);
       pickables.push(mesh);
 
-      const ov = new THREE.Mesh(
-        new THREE.PlaneGeometry(SQ * 0.92, SQ * 0.92),
-        mats.highlight.clone()
-      );
+      const ov = new THREE.Mesh(new THREE.PlaneGeometry(sqSize * 0.92, sqSize * 0.92), mats.highlight.clone());
       ov.rotation.x = -Math.PI / 2;
-      ov.position.set(x, 0.28, z);
+      ov.position.set(x, 0.29, z);
       ov.visible = false;
-      ov.userData.square = sq;
       root.add(ov);
       overlays.set(sq, ov);
     }
   }
 
-  // Soft bevel gloss on board surface edge
-  const gloss = new THREE.Mesh(
-    new THREE.BoxGeometry(BOARD + 0.02, 0.02, BOARD + 0.02),
-    new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.06,
-      roughness: 0.1,
-      metalness: 0.3,
-    })
-  );
-  gloss.position.y = 0.27;
-  root.add(gloss);
-
   const piecesGroup = new THREE.Group();
   root.add(piecesGroup);
-  const pieceMap = new Map(); // sq -> mesh
+  const pieceMap = new Map();
 
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  let ptrDown = null; // { x, y, az, pol, id }
+  let ptrDown = null;
+  const TAP_PX = 18;
+  const TAP_ANGLE = 0.035;
 
   function clearPieces() {
     while (piecesGroup.children.length) {
@@ -634,8 +523,7 @@ export function createChess3D(container, hooks = {}) {
     const w = sqToWorld(sq);
     p.position.x = w.x;
     p.position.z = w.z;
-    p.position.y += 0.26;
-    // Face white toward -z (rank 1 side) by default; knights face forward
+    p.position.y += 0.28;
     if (color === "b") p.rotation.y = Math.PI;
     p.userData.square = sq;
     piecesGroup.add(p);
@@ -650,25 +538,21 @@ export function createChess3D(container, hooks = {}) {
       for (let c = 0; c < 8; c++) {
         const cell = board[r][c];
         if (!cell) continue;
-        const file = FILE[c];
-        const rank = 8 - r;
-        placePiece(file + rank, cell.type, cell.color);
+        placePiece(FILE[c] + (8 - r), cell.type, cell.color);
       }
     }
-    // Orient camera side for player
-    if (orientation === "b") {
-      controls.target.set(0, 0.2, 0);
-      if (!controls.userData._oriented) {
-        camera.position.set(0, 9.5, -11.5);
-        controls.userData._oriented = true;
-      }
+    if (orientation === "b" && !controls.userData._oriented) {
+      camera.position.set(0, 8.8, -10.8);
+      controls.userData._oriented = true;
     }
   }
 
   function setHighlights({ selected, legal = [], lastFrom, lastTo } = {}) {
     const legalSet = new Set(legal.map((m) => (typeof m === "string" ? m : m.to)));
     const captureSet = new Set(
-      legal.filter((m) => m.captured || (m.flags && String(m.flags).includes("c"))).map((m) => m.to)
+      legal
+        .filter((m) => m && (m.captured || (m.flags && String(m.flags).includes("c"))))
+        .map((m) => m.to)
     );
     for (const [sq, ov] of overlays) {
       ov.visible = false;
@@ -692,7 +576,7 @@ export function createChess3D(container, hooks = {}) {
     const w = container.clientWidth || 320;
     const h = container.clientHeight || w;
     renderer.setSize(w, h, false);
-    camera.aspect = w / h;
+    camera.aspect = w / Math.max(h, 1);
     camera.updateProjectionMatrix();
   }
 
@@ -702,21 +586,15 @@ export function createChess3D(container, hooks = {}) {
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    // Prefer pieces (they're taller), then board squares
     const pieceHits = raycaster.intersectObjects(piecesGroup.children, true);
     if (pieceHits.length) {
       let o = pieceHits[0].object;
       while (o && !o.userData.square) o = o.parent;
-      if (o && o.userData.square) return o.userData.square;
+      if (o?.userData.square) return o.userData.square;
     }
     const hits = raycaster.intersectObjects(pickables, false);
-    if (hits.length) return hits[0].object.userData.square;
-    return null;
+    return hits.length ? hits[0].object.userData.square : null;
   }
-
-  // Tap vs orbit: OrbitControls always jiggles a bit on touch — use distance + camera delta
-  const TAP_PX = 18;
-  const TAP_ANGLE = 0.035; // radians (~2°)
 
   renderer.domElement.addEventListener("pointerdown", (e) => {
     if (e.button != null && e.button !== 0) return;
@@ -733,9 +611,7 @@ export function createChess3D(container, hooks = {}) {
       ptrDown = null;
       return;
     }
-    const dx = e.clientX - ptrDown.x;
-    const dy = e.clientY - ptrDown.y;
-    const dist = Math.hypot(dx, dy);
+    const dist = Math.hypot(e.clientX - ptrDown.x, e.clientY - ptrDown.y);
     const dAz = Math.abs(controls.getAzimuthalAngle() - ptrDown.az);
     const dPol = Math.abs(controls.getPolarAngle() - ptrDown.pol);
     const wasTap = dist <= TAP_PX && dAz <= TAP_ANGLE && dPol <= TAP_ANGLE;
@@ -759,7 +635,7 @@ export function createChess3D(container, hooks = {}) {
       const start = mesh.position.clone();
       const dest = sqToWorld(to);
       const end = new THREE.Vector3(dest.x, start.y, dest.z);
-      const lift = 0.45;
+      const lift = 0.4;
       const t0 = performance.now();
       function frame(now) {
         const t = Math.min(1, (now - t0) / duration);
@@ -783,30 +659,27 @@ export function createChess3D(container, hooks = {}) {
   async function playCaptureSequence(capSq, attackerFrom, attackerTo) {
     const victim = pieceMap.get(capSq);
     const dest = sqToWorld(capSq);
-    // TNT stick
-    const tntMat = new THREE.MeshStandardMaterial({ color: 0xb71c1c, roughness: 0.5, metalness: 0.1 });
+    const tntMat = new THREE.MeshStandardMaterial({ color: 0xb71c1c, roughness: 0.5 });
     const tnt = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.28, 12), tntMat);
     tnt.rotation.z = Math.PI / 2;
     tnt.position.set(dest.x, 2.2, dest.z);
     root.add(tnt);
     await new Promise((resolve) => {
       const t0 = performance.now();
-      function frame(now) {
+      (function frame(now) {
         const t = Math.min(1, (now - t0) / 520);
         const e = 1 - Math.pow(1 - t, 3);
         tnt.position.y = 2.2 + (0.55 - 2.2) * e + Math.abs(Math.sin(t * Math.PI * 2)) * 0.15 * (1 - t);
         tnt.rotation.y = t * 4;
         if (t < 1) requestAnimationFrame(frame);
         else resolve();
-      }
-      requestAnimationFrame(frame);
+      })(performance.now());
     });
-    // Shake victim
     if (victim) {
       const ox = victim.position.x;
       await new Promise((resolve) => {
         const t0 = performance.now();
-        function frame(now) {
+        (function frame(now) {
           const t = Math.min(1, (now - t0) / 420);
           victim.position.x = ox + Math.sin(t * Math.PI * 10) * 0.06 * (1 - t);
           victim.rotation.z = Math.sin(t * Math.PI * 8) * 0.12 * (1 - t);
@@ -816,40 +689,37 @@ export function createChess3D(container, hooks = {}) {
             victim.rotation.z = 0;
             resolve();
           }
-        }
-        requestAnimationFrame(frame);
+        })(performance.now());
       });
     }
-    // Boom particles
     root.remove(tnt);
     if (victim) {
       piecesGroup.remove(victim);
       pieceMap.delete(capSq);
     }
     const parts = [];
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; i < 16; i++) {
       const p = new THREE.Mesh(
-        new THREE.SphereGeometry(0.04 + Math.random() * 0.05, 6, 6),
+        new THREE.SphereGeometry(0.035 + Math.random() * 0.04, 6, 6),
         new THREE.MeshStandardMaterial({
           color: i % 2 ? 0xffcc44 : 0xff5522,
           emissive: 0xff4400,
-          emissiveIntensity: 0.6,
-          roughness: 0.4,
+          emissiveIntensity: 0.5,
         })
       );
       p.position.set(dest.x, 0.5, dest.z);
       p.userData.v = new THREE.Vector3(
-        (Math.random() - 0.5) * 0.18,
-        0.08 + Math.random() * 0.14,
-        (Math.random() - 0.5) * 0.18
+        (Math.random() - 0.5) * 0.16,
+        0.08 + Math.random() * 0.12,
+        (Math.random() - 0.5) * 0.16
       );
       root.add(p);
       parts.push(p);
     }
     await new Promise((resolve) => {
       const t0 = performance.now();
-      function frame(now) {
-        const t = Math.min(1, (now - t0) / 550);
+      (function frame(now) {
+        const t = Math.min(1, (now - t0) / 500);
         for (const p of parts) {
           p.position.add(p.userData.v);
           p.userData.v.y -= 0.006;
@@ -860,8 +730,7 @@ export function createChess3D(container, hooks = {}) {
           for (const p of parts) root.remove(p);
           resolve();
         }
-      }
-      requestAnimationFrame(frame);
+      })(performance.now());
     });
     await animatePieceMove(attackerFrom, attackerTo, { duration: 450 });
   }
@@ -872,17 +741,14 @@ export function createChess3D(container, hooks = {}) {
     controls.update();
     renderer.render(scene, camera);
   }
-
   const ro = new ResizeObserver(() => resize());
   ro.observe(container);
   resize();
-  // Second layout pass — mobile browsers often report 0×0 on first paint
   requestAnimationFrame(() => {
     resize();
     requestAnimationFrame(resize);
   });
   loop();
-
   controls.update();
 
   return {
@@ -896,7 +762,7 @@ export function createChess3D(container, hooks = {}) {
       ro.disconnect();
       controls.dispose();
       renderer.dispose();
-      if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+      renderer.domElement.remove();
     },
     get dom() {
       return renderer.domElement;
