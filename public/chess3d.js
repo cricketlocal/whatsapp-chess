@@ -39,53 +39,53 @@ function woodTexture(base, grain, opts = {}) {
   return tex;
 }
 
-/** Carved marble: bold veins + bump (readable on small pieces). */
+/**
+ * Clean luxury marble (Carrara / Nero Marquina style).
+ * Soft elegant veins — not muddy or over-busy.
+ */
 function marbleMaps(kind = "white") {
-  const size = 768;
+  const size = 1024;
   const c = document.createElement("canvas");
   c.width = c.height = size;
   const ctx = c.getContext("2d");
   const bump = document.createElement("canvas");
   bump.width = bump.height = size;
   const bctx = bump.getContext("2d");
-  const rough = document.createElement("canvas");
-  rough.width = rough.height = size;
-  const rctx = rough.getContext("2d");
 
   const isWhite = kind === "white";
-  if (isWhite) {
-    const g = ctx.createLinearGradient(0, 0, size, size);
-    g.addColorStop(0, "#fffaf3");
-    g.addColorStop(0.35, "#f0e6d6");
-    g.addColorStop(0.7, "#e8dcc8");
-    g.addColorStop(1, "#ddd0bc");
-    ctx.fillStyle = g;
-  } else {
-    const g = ctx.createLinearGradient(0, 0, size, size);
-    g.addColorStop(0, "#3a3a42");
-    g.addColorStop(0.4, "#222228");
-    g.addColorStop(1, "#0e0e12");
-    ctx.fillStyle = g;
-  }
-  ctx.fillRect(0, 0, size, size);
-  bctx.fillStyle = "#888888";
-  bctx.fillRect(0, 0, size, size);
-  rctx.fillStyle = "#b0b0b0";
-  rctx.fillRect(0, 0, size, size);
 
-  // Strong cloudy mineral patches
-  for (let i = 0; i < 160; i++) {
+  // Pure stone base
+  if (isWhite) {
+    ctx.fillStyle = "#f5f2ec";
+    ctx.fillRect(0, 0, size, size);
+    const g = ctx.createRadialGradient(size * 0.3, size * 0.2, 0, size * 0.5, size * 0.5, size * 0.8);
+    g.addColorStop(0, "rgba(255,255,255,0.55)");
+    g.addColorStop(1, "rgba(230,226,218,0.35)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+  } else {
+    ctx.fillStyle = "#1c1c20";
+    ctx.fillRect(0, 0, size, size);
+    const g = ctx.createRadialGradient(size * 0.4, size * 0.35, 0, size * 0.5, size * 0.5, size * 0.75);
+    g.addColorStop(0, "rgba(45,45,52,0.6)");
+    g.addColorStop(1, "rgba(10,10,12,0.4)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+  }
+  bctx.fillStyle = "#909090";
+  bctx.fillRect(0, 0, size, size);
+
+  // Soft mottling only
+  for (let i = 0; i < 70; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const r = 25 + Math.random() * 110;
+    const r = 40 + Math.random() * 120;
     const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
     if (isWhite) {
-      const dark = Math.random() > 0.55;
-      grd.addColorStop(0, dark ? "rgba(140,130,120,0.45)" : "rgba(255,255,255,0.4)");
-      grd.addColorStop(1, "rgba(200,190,175,0)");
+      grd.addColorStop(0, "rgba(210,205,198,0.2)");
+      grd.addColorStop(1, "rgba(245,242,236,0)");
     } else {
-      const light = Math.random() > 0.5;
-      grd.addColorStop(0, light ? "rgba(120,120,130,0.5)" : "rgba(0,0,0,0.45)");
+      grd.addColorStop(0, "rgba(55,55,62,0.35)");
       grd.addColorStop(1, "rgba(20,20,24,0)");
     }
     ctx.fillStyle = grd;
@@ -94,206 +94,151 @@ function marbleMaps(kind = "white") {
     ctx.fill();
   }
 
-  function strokeVein(bold) {
+  // Elegant flowing veins (fewer, cleaner)
+  function vein(alpha, width) {
     let x = Math.random() * size;
-    let y = -20 + Math.random() * size * 0.3;
+    let y = Math.random() * size * 0.2 - 40;
     ctx.beginPath();
     bctx.beginPath();
-    rctx.beginPath();
     ctx.moveTo(x, y);
     bctx.moveTo(x, y);
-    rctx.moveTo(x, y);
-    const segs = 12 + Math.floor(Math.random() * 14);
-    for (let s = 0; s < segs; s++) {
-      x += (Math.random() - 0.48) * (bold ? 70 : 45);
-      y += 18 + Math.random() * (bold ? 55 : 40);
-      const cx = x + (Math.random() - 0.5) * 40;
-      const cy = y + (Math.random() - 0.5) * 20;
+    for (let s = 0; s < 16; s++) {
+      x += (Math.random() - 0.5) * 50;
+      y += 25 + Math.random() * 40;
+      const cx = x + (Math.random() - 0.5) * 60;
+      const cy = y - 10;
       ctx.quadraticCurveTo(cx, cy, x, y);
       bctx.quadraticCurveTo(cx, cy, x, y);
-      rctx.quadraticCurveTo(cx, cy, x, y);
     }
     if (isWhite) {
-      const a = bold ? 0.72 : 0.45;
-      ctx.strokeStyle = `rgba(${55 + Math.random() * 50},${50 + Math.random() * 40},${60 + Math.random() * 45},${a})`;
+      ctx.strokeStyle = `rgba(120,118,122,${alpha})`;
     } else {
-      const a = bold ? 0.75 : 0.4;
-      ctx.strokeStyle = `rgba(${210 + Math.random() * 40},${210 + Math.random() * 40},${220 + Math.random() * 30},${a})`;
+      ctx.strokeStyle = `rgba(210,210,218,${alpha})`;
     }
-    ctx.lineWidth = bold ? 3.5 + Math.random() * 5 : 1.5 + Math.random() * 2.5;
+    ctx.lineWidth = width;
     ctx.lineJoin = "round";
     ctx.stroke();
-    // Soft halo vein
-    ctx.save();
-    ctx.globalAlpha = 0.25;
-    ctx.lineWidth += 4;
-    ctx.stroke();
-    ctx.restore();
-
-    bctx.strokeStyle = `rgba(0,0,0,${bold ? 0.75 : 0.45})`;
-    bctx.lineWidth = bold ? 5 + Math.random() * 5 : 2.5 + Math.random() * 3;
-    bctx.stroke();
-    rctx.strokeStyle = bold ? "#1a1a1a" : "#606060";
-    rctx.lineWidth = bold ? 4 : 2;
-    rctx.stroke();
-  }
-
-  // Primary bold veins + finer network
-  for (let v = 0; v < 10; v++) strokeVein(true);
-  for (let v = 0; v < 22; v++) strokeVein(false);
-
-  // Branching short cracks
-  for (let i = 0; i < 40; i++) {
-    const x0 = Math.random() * size;
-    const y0 = Math.random() * size;
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x0 + (Math.random() - 0.5) * 80, y0 + (Math.random() - 0.5) * 80);
-    if (isWhite) ctx.strokeStyle = `rgba(80,70,65,${0.35 + Math.random() * 0.35})`;
-    else ctx.strokeStyle = `rgba(230,230,235,${0.3 + Math.random() * 0.4})`;
-    ctx.lineWidth = 1 + Math.random() * 2;
-    ctx.stroke();
-    bctx.strokeStyle = "rgba(0,0,0,0.5)";
-    bctx.lineWidth = 2;
-    bctx.beginPath();
-    bctx.moveTo(x0, y0);
-    bctx.lineTo(x0 + (Math.random() - 0.5) * 80, y0 + (Math.random() - 0.5) * 80);
+    bctx.strokeStyle = `rgba(0,0,0,${0.25 + alpha * 0.4})`;
+    bctx.lineWidth = width + 1.5;
     bctx.stroke();
   }
+  for (let i = 0; i < 7; i++) vein(0.35 + Math.random() * 0.25, 1.8 + Math.random() * 2.2);
+  for (let i = 0; i < 12; i++) vein(0.12 + Math.random() * 0.15, 0.7 + Math.random() * 1.2);
 
-  // Mineral flecks
-  for (let i = 0; i < 2500; i++) {
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    ctx.globalAlpha = isWhite ? 0.08 : 0.1;
-    ctx.fillStyle = isWhite ? (Math.random() > 0.5 ? "#9a8f82" : "#fff") : (Math.random() > 0.5 ? "#ccc" : "#050508");
-    ctx.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  // Fine polish grain
+  for (let i = 0; i < 800; i++) {
+    ctx.globalAlpha = isWhite ? 0.03 : 0.04;
+    ctx.fillStyle = isWhite ? "#c8c4bc" : "#0a0a0c";
+    ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
   }
   ctx.globalAlpha = 1;
 
-  const shine = ctx.createLinearGradient(0, 0, size, size * 0.4);
-  shine.addColorStop(0, isWhite ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.1)");
-  shine.addColorStop(1, "rgba(255,255,255,0)");
+  // Specular wash
+  const shine = ctx.createLinearGradient(0, 0, size, size);
+  shine.addColorStop(0, isWhite ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.08)");
+  shine.addColorStop(0.5, "rgba(255,255,255,0)");
+  shine.addColorStop(1, isWhite ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)");
   ctx.fillStyle = shine;
   ctx.fillRect(0, 0, size, size);
 
-  // Larger repeat so veins stay bold on piece scale
-  const rep = 1.15;
   const map = new THREE.CanvasTexture(c);
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
-  map.repeat.set(rep, rep);
+  map.repeat.set(1.6, 1.6);
   map.anisotropy = 8;
   map.colorSpace = THREE.SRGBColorSpace;
 
   const bumpMap = new THREE.CanvasTexture(bump);
   bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
-  bumpMap.repeat.set(rep, rep);
+  bumpMap.repeat.set(1.6, 1.6);
   bumpMap.anisotropy = 8;
 
-  const roughnessMap = new THREE.CanvasTexture(rough);
-  roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping;
-  roughnessMap.repeat.set(rep, rep);
-
-  return { map, bumpMap, roughnessMap };
-}
-
-function loadTex(url, { repeat = 1, colorSpace = true } = {}) {
-  const loader = new THREE.TextureLoader();
-  const tex = loader.load(url);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(repeat, repeat);
-  tex.anisotropy = 8;
-  if (colorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  return { map, bumpMap };
 }
 
 function makeMats() {
-  // Photo-derived marble (from real set) + procedural bump for carved depth
+  // Clean procedural Carrara / Nero Marquina only (no muddy photo crops)
   const whiteMarble = marbleMaps("white");
   const blackMarble = marbleMaps("black");
-  const boardLight = marbleMaps("white");
-  const boardDark = marbleMaps("black");
+  const borderMarble = marbleMaps("white");
+  borderMarble.map.repeat.set(2.5, 2.5);
+  borderMarble.bumpMap.repeat.set(2.5, 2.5);
 
-  // Prefer real photo textures when available
-  const sqLightMap = loadTex("textures/marble-sq-light.jpg", { repeat: 1 });
-  const sqDarkMap = loadTex("textures/marble-sq-dark.jpg", { repeat: 1 });
-  const borderMap = loadTex("textures/marble-border.jpg", { repeat: 2 });
-  const pieceWhiteMap = loadTex("textures/marble-piece-white.jpg", { repeat: 1.4 });
-  const pieceBlackMap = loadTex("textures/marble-piece-black.jpg", { repeat: 1.4 });
-
-  // Clean polished marble materials (luxury set look)
   const whitePiece = new THREE.MeshPhysicalMaterial({
-    map: pieceWhiteMap,
+    map: whiteMarble.map,
     bumpMap: whiteMarble.bumpMap,
-    bumpScale: 0.06,
-    roughnessMap: whiteMarble.roughnessMap,
-    roughness: 0.18,
+    bumpScale: 0.04,
+    color: 0xffffff,
+    roughness: 0.16,
     metalness: 0.02,
-    clearcoat: 0.55,
-    clearcoatRoughness: 0.2,
-    envMapIntensity: 1.2,
-  });
-  // Fallback tint if photo is muddy
-  whitePiece.color = new THREE.Color(0xffffff);
-
-  const blackPiece = new THREE.MeshPhysicalMaterial({
-    map: pieceBlackMap,
-    bumpMap: blackMarble.bumpMap,
-    bumpScale: 0.07,
-    roughnessMap: blackMarble.roughnessMap,
-    roughness: 0.2,
-    metalness: 0.04,
-    clearcoat: 0.5,
-    clearcoatRoughness: 0.22,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.12,
     envMapIntensity: 1.15,
   });
-  blackPiece.color = new THREE.Color(0xffffff);
+
+  const blackPiece = new THREE.MeshPhysicalMaterial({
+    map: blackMarble.map,
+    bumpMap: blackMarble.bumpMap,
+    bumpScale: 0.045,
+    color: 0xffffff,
+    roughness: 0.18,
+    metalness: 0.03,
+    clearcoat: 0.65,
+    clearcoatRoughness: 0.14,
+    envMapIntensity: 1.1,
+  });
+
+  const sqLightMap = whiteMarble.map.clone();
+  sqLightMap.repeat.set(2.4, 2.4);
+  const sqLightBump = whiteMarble.bumpMap.clone();
+  sqLightBump.repeat.set(2.4, 2.4);
+  const sqDarkMap = blackMarble.map.clone();
+  sqDarkMap.repeat.set(2.4, 2.4);
+  const sqDarkBump = blackMarble.bumpMap.clone();
+  sqDarkBump.repeat.set(2.4, 2.4);
 
   return {
     lightSq: new THREE.MeshPhysicalMaterial({
       map: sqLightMap,
-      bumpMap: boardLight.bumpMap,
-      bumpScale: 0.025,
-      roughness: 0.2,
-      metalness: 0.02,
-      clearcoat: 0.55,
-      clearcoatRoughness: 0.18,
-      envMapIntensity: 1.05,
+      bumpMap: sqLightBump,
+      bumpScale: 0.02,
       color: 0xffffff,
+      roughness: 0.18,
+      metalness: 0.02,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.15,
+      envMapIntensity: 1.05,
     }),
     darkSq: new THREE.MeshPhysicalMaterial({
       map: sqDarkMap,
-      bumpMap: boardDark.bumpMap,
-      bumpScale: 0.03,
-      roughness: 0.24,
-      metalness: 0.03,
-      clearcoat: 0.45,
-      clearcoatRoughness: 0.22,
-      envMapIntensity: 1.0,
+      bumpMap: sqDarkBump,
+      bumpScale: 0.022,
       color: 0xffffff,
+      roughness: 0.2,
+      metalness: 0.03,
+      clearcoat: 0.55,
+      clearcoatRoughness: 0.16,
+      envMapIntensity: 1.0,
     }),
     frame: new THREE.MeshPhysicalMaterial({
-      map: borderMap,
-      bumpMap: whiteMarble.bumpMap,
-      bumpScale: 0.035,
-      roughness: 0.18,
-      metalness: 0.02,
-      clearcoat: 0.55,
-      clearcoatRoughness: 0.18,
-      envMapIntensity: 1.1,
+      map: borderMarble.map,
+      bumpMap: borderMarble.bumpMap,
+      bumpScale: 0.03,
       color: 0xffffff,
+      roughness: 0.16,
+      metalness: 0.02,
+      clearcoat: 0.7,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: 1.1,
     }),
-    // Subtle polished edge line (not chunky gold)
     gold: new THREE.MeshPhysicalMaterial({
-      color: 0xc9b896,
-      roughness: 0.35,
-      metalness: 0.35,
-      clearcoat: 0.3,
+      color: 0xd8d0c4,
+      roughness: 0.4,
+      metalness: 0.15,
+      clearcoat: 0.25,
     }),
-    // Soft studio floor
     felt: new THREE.MeshStandardMaterial({
-      color: 0xe8e4dc,
-      roughness: 0.9,
+      color: 0xececef,
+      roughness: 0.92,
       metalness: 0,
     }),
     whitePiece,
@@ -301,25 +246,25 @@ function makeMats() {
     highlight: new THREE.MeshBasicMaterial({
       color: 0xf6c945,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.28,
       depthWrite: false,
     }),
     lastMove: new THREE.MeshBasicMaterial({
       color: 0xe8b03c,
       transparent: true,
-      opacity: 0.24,
+      opacity: 0.2,
       depthWrite: false,
     }),
     legal: new THREE.MeshBasicMaterial({
       color: 0x2a5a40,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.28,
       depthWrite: false,
     }),
     capture: new THREE.MeshBasicMaterial({
       color: 0xc62828,
       transparent: true,
-      opacity: 0.36,
+      opacity: 0.32,
       depthWrite: false,
     }),
   };
