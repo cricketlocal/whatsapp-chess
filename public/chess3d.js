@@ -197,85 +197,129 @@ function marbleMaps(kind = "white") {
   return { map, bumpMap, roughnessMap };
 }
 
-function makeMats() {
-  const maple = woodTexture("#f3e4c8", "#d2b896", { speck: "#a88860" });
-  const walnut = woodTexture("#8a5a38", "#5a3820", { speck: "#2a1810" });
-  const rosewood = woodTexture("#6a4030", "#3e2418", { speck: "#1a100c" });
-  rosewood.repeat.set(2, 2);
+function loadTex(url, { repeat = 1, colorSpace = true } = {}) {
+  const loader = new THREE.TextureLoader();
+  const tex = loader.load(url);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(repeat, repeat);
+  tex.anisotropy = 8;
+  if (colorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
+function makeMats() {
+  // Photo-derived marble (from real set) + procedural bump for carved depth
   const whiteMarble = marbleMaps("white");
   const blackMarble = marbleMaps("black");
+  const boardLight = marbleMaps("white");
+  const boardDark = marbleMaps("black");
+
+  // Prefer real photo textures when available
+  const sqLightMap = loadTex("textures/marble-sq-light.jpg", { repeat: 1 });
+  const sqDarkMap = loadTex("textures/marble-sq-dark.jpg", { repeat: 1 });
+  const borderMap = loadTex("textures/marble-border.jpg", { repeat: 2 });
+  const pieceWhiteMap = loadTex("textures/marble-piece-white.jpg", { repeat: 1.4 });
+  const pieceBlackMap = loadTex("textures/marble-piece-black.jpg", { repeat: 1.4 });
+
+  // Clean polished marble materials (luxury set look)
+  const whitePiece = new THREE.MeshPhysicalMaterial({
+    map: pieceWhiteMap,
+    bumpMap: whiteMarble.bumpMap,
+    bumpScale: 0.06,
+    roughnessMap: whiteMarble.roughnessMap,
+    roughness: 0.18,
+    metalness: 0.02,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.2,
+    envMapIntensity: 1.2,
+  });
+  // Fallback tint if photo is muddy
+  whitePiece.color = new THREE.Color(0xffffff);
+
+  const blackPiece = new THREE.MeshPhysicalMaterial({
+    map: pieceBlackMap,
+    bumpMap: blackMarble.bumpMap,
+    bumpScale: 0.07,
+    roughnessMap: blackMarble.roughnessMap,
+    roughness: 0.2,
+    metalness: 0.04,
+    clearcoat: 0.5,
+    clearcoatRoughness: 0.22,
+    envMapIntensity: 1.15,
+  });
+  blackPiece.color = new THREE.Color(0xffffff);
 
   return {
-    lightSq: new THREE.MeshStandardMaterial({
-      map: maple,
-      roughness: 0.38,
-      metalness: 0.06,
+    lightSq: new THREE.MeshPhysicalMaterial({
+      map: sqLightMap,
+      bumpMap: boardLight.bumpMap,
+      bumpScale: 0.025,
+      roughness: 0.2,
+      metalness: 0.02,
+      clearcoat: 0.55,
+      clearcoatRoughness: 0.18,
+      envMapIntensity: 1.05,
+      color: 0xffffff,
+    }),
+    darkSq: new THREE.MeshPhysicalMaterial({
+      map: sqDarkMap,
+      bumpMap: boardDark.bumpMap,
+      bumpScale: 0.03,
+      roughness: 0.24,
+      metalness: 0.03,
+      clearcoat: 0.45,
+      clearcoatRoughness: 0.22,
       envMapIntensity: 1.0,
+      color: 0xffffff,
     }),
-    darkSq: new THREE.MeshStandardMaterial({
-      map: walnut,
-      roughness: 0.44,
-      metalness: 0.05,
-      envMapIntensity: 0.85,
+    frame: new THREE.MeshPhysicalMaterial({
+      map: borderMap,
+      bumpMap: whiteMarble.bumpMap,
+      bumpScale: 0.035,
+      roughness: 0.18,
+      metalness: 0.02,
+      clearcoat: 0.55,
+      clearcoatRoughness: 0.18,
+      envMapIntensity: 1.1,
+      color: 0xffffff,
     }),
-    frame: new THREE.MeshStandardMaterial({
-      map: rosewood,
-      roughness: 0.36,
-      metalness: 0.1,
-      envMapIntensity: 1.0,
+    // Subtle polished edge line (not chunky gold)
+    gold: new THREE.MeshPhysicalMaterial({
+      color: 0xc9b896,
+      roughness: 0.35,
+      metalness: 0.35,
+      clearcoat: 0.3,
     }),
-    gold: new THREE.MeshStandardMaterial({
-      color: 0xd4af37,
-      roughness: 0.28,
-      metalness: 0.85,
-      envMapIntensity: 1.2,
-    }),
+    // Soft studio floor
     felt: new THREE.MeshStandardMaterial({
-      color: 0x2d5a40,
-      roughness: 0.92,
+      color: 0xe8e4dc,
+      roughness: 0.9,
       metalness: 0,
     }),
-    whitePiece: new THREE.MeshStandardMaterial({
-      map: whiteMarble.map,
-      bumpMap: whiteMarble.bumpMap,
-      bumpScale: 0.12,
-      roughnessMap: whiteMarble.roughnessMap,
-      roughness: 0.35,
-      metalness: 0.06,
-      envMapIntensity: 1.15,
-    }),
-    blackPiece: new THREE.MeshStandardMaterial({
-      map: blackMarble.map,
-      bumpMap: blackMarble.bumpMap,
-      bumpScale: 0.14,
-      roughnessMap: blackMarble.roughnessMap,
-      roughness: 0.38,
-      metalness: 0.08,
-      envMapIntensity: 1.05,
-    }),
+    whitePiece,
+    blackPiece,
     highlight: new THREE.MeshBasicMaterial({
       color: 0xf6c945,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.32,
       depthWrite: false,
     }),
     lastMove: new THREE.MeshBasicMaterial({
       color: 0xe8b03c,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.24,
       depthWrite: false,
     }),
     legal: new THREE.MeshBasicMaterial({
-      color: 0x1a3d2b,
+      color: 0x2a5a40,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.32,
       depthWrite: false,
     }),
     capture: new THREE.MeshBasicMaterial({
       color: 0xc62828,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.36,
       depthWrite: false,
     }),
   };
@@ -489,11 +533,12 @@ export function createChess3D(container, hooks = {}) {
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf0e6d4);
-  scene.fog = new THREE.Fog(0xf0e6d4, 22, 40);
+  // Soft grey studio like the reference marble-set photo
+  scene.background = new THREE.Color(0xe6e6e8);
+  scene.fog = new THREE.Fog(0xe6e6e8, 26, 45);
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 80);
-  camera.position.set(0, 9.5, 11.5);
+  camera.position.set(0, 9.2, 11.2);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enablePan = false;
@@ -501,20 +546,19 @@ export function createChess3D(container, hooks = {}) {
   controls.dampingFactor = 0.08;
   controls.minDistance = 8;
   controls.maxDistance = 18;
-  controls.minPolarAngle = 0.35; // tilt limit
+  controls.minPolarAngle = 0.35;
   controls.maxPolarAngle = 1.25;
   controls.target.set(0, 0.2, 0);
   controls.rotateSpeed = 0.65;
-  // One-finger rotate (azimuth + polar) = swipe L/R and U/D
   if (THREE.TOUCH) {
     controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   }
 
-  // Studio lighting — strong key for crisp piece shadows on the board
-  const hemi = new THREE.HemisphereLight(0xfff8ee, 0xb8a890, 0.75);
+  // Clean cool-white studio lighting (matches product photo)
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xd0d0d4, 0.85);
   scene.add(hemi);
-  const key = new THREE.DirectionalLight(0xffffff, 2.05);
-  key.position.set(6.5, 14, 7);
+  const key = new THREE.DirectionalLight(0xffffff, 1.85);
+  key.position.set(5.5, 13, 6.5);
   key.castShadow = true;
   key.shadow.mapSize.set(4096, 4096);
   key.shadow.camera.near = 1;
@@ -523,11 +567,10 @@ export function createChess3D(container, hooks = {}) {
   key.shadow.camera.right = key.shadow.camera.top = 11;
   key.shadow.bias = -0.00015;
   key.shadow.normalBias = 0.02;
-  key.shadow.radius = 2.5;
+  key.shadow.radius = 2.2;
   scene.add(key);
-  // Soft secondary shadow caster
-  const key2 = new THREE.DirectionalLight(0xfff0dd, 0.55);
-  key2.position.set(-4, 10, 3);
+  const key2 = new THREE.DirectionalLight(0xf5f5ff, 0.45);
+  key2.position.set(-5, 9, 2);
   key2.castShadow = true;
   key2.shadow.mapSize.set(2048, 2048);
   key2.shadow.camera.near = 1;
@@ -537,44 +580,41 @@ export function createChess3D(container, hooks = {}) {
   key2.shadow.bias = -0.0002;
   key2.shadow.radius = 4;
   scene.add(key2);
-  const fill = new THREE.DirectionalLight(0xe8f0ff, 0.55);
-  fill.position.set(-6, 6, -4);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.5);
+  fill.position.set(-4, 5, -5);
   scene.add(fill);
-  const rim = new THREE.PointLight(0xffe2a8, 0.7, 24);
-  rim.position.set(0, 5, -6);
-  scene.add(rim);
-  const ambient = new THREE.AmbientLight(0xfff5e8, 0.22);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.28);
   scene.add(ambient);
 
   const root = new THREE.Group();
   scene.add(root);
 
-  // Felt table
-  const table = new THREE.Mesh(new THREE.CylinderGeometry(7.2, 7.2, 0.15, 64), mats.felt);
-  table.position.y = -0.55;
+  // Soft studio table
+  const table = new THREE.Mesh(new THREE.CylinderGeometry(7.4, 7.4, 0.12, 64), mats.felt);
+  table.position.y = -0.48;
   table.receiveShadow = true;
   root.add(table);
 
-  // Thick rosewood plinth
-  const plinth = new THREE.Mesh(new THREE.BoxGeometry(BOARD + 1.35, 0.55, BOARD + 1.35), mats.frame);
-  plinth.position.y = -0.2;
+  // Thick white marble border (real-set style)
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(BOARD + 1.55, 0.4, BOARD + 1.55), mats.frame);
+  plinth.position.y = -0.1;
   plinth.castShadow = true;
   plinth.receiveShadow = true;
   root.add(plinth);
 
-  // Gold inlay ring
+  const rimFrame = new THREE.Mesh(new THREE.BoxGeometry(BOARD + 0.9, 0.18, BOARD + 0.9), mats.frame);
+  rimFrame.position.y = 0.15;
+  rimFrame.castShadow = true;
+  rimFrame.receiveShadow = true;
+  root.add(rimFrame);
+
+  // Subtle edge line only
   const inlay = new THREE.Mesh(
-    new THREE.BoxGeometry(BOARD + 0.95, 0.03, BOARD + 0.95),
+    new THREE.BoxGeometry(BOARD + 0.06, 0.012, BOARD + 0.06),
     mats.gold
   );
-  inlay.position.y = 0.08;
+  inlay.position.y = 0.255;
   root.add(inlay);
-
-  // Inner frame
-  const inner = new THREE.Mesh(new THREE.BoxGeometry(BOARD + 0.55, 0.22, BOARD + 0.55), mats.frame);
-  inner.position.y = 0.12;
-  inner.receiveShadow = true;
-  root.add(inner);
 
   // Squares + pick meshes
   const squares = new THREE.Group();
