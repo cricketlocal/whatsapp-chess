@@ -662,7 +662,14 @@ export function createChess3D(container, hooks = {}) {
     p.position.x = w.x;
     p.position.z = w.z;
     p.position.y += 0.28;
-    if (color === "b") p.rotation.y = Math.PI;
+    // Face opponent; knights yaw slightly toward board centre for a readable 3/4 horse
+    let yaw = color === "b" ? Math.PI : 0;
+    if (type === "n") {
+      const file = sq.charCodeAt(0) - 97; // 0=a … 7=h
+      const towardCentre = file < 4 ? 1 : -1; // queenside / kingside
+      yaw += towardCentre * 0.55 * (color === "w" ? 1 : -1);
+    }
+    p.rotation.y = yaw;
     p.userData.square = sq;
     piecesGroup.add(p);
     pieceMap.set(sq, p);
