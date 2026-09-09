@@ -174,6 +174,14 @@ function makeMats() {
       metalness: 0.65,
       clearcoat: 0.45,
     }),
+    goldBand: new THREE.MeshPhysicalMaterial({
+      color: 0xd4af37,
+      roughness: 0.26,
+      metalness: 0.9,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: 1.35,
+    }),
     highlight: new THREE.MeshBasicMaterial({
       color: 0xf0c94a,
       transparent: true,
@@ -211,9 +219,154 @@ function lathe(points, mat, scale) {
   return m;
 }
 
+/** Gold collar rings — thick enough to read as luxury banding. */
+function addGoldBands(g, goldMat, bands) {
+  for (const [y, r, tube = 0.028] of bands) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 12, 40), goldMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = y;
+    ring.castShadow = true;
+    g.add(ring);
+  }
+}
+
+/**
+ * Classic Staunton knight: flared base + clear side-profile horse head.
+ * Built at final height (no extra Y stretch) so the horse doesn't giraffe.
+ */
+function buildKnight(mat, goldMat, s) {
+  const g = new THREE.Group();
+
+  // Flared pedestal + short neck column
+  g.add(
+    lathe(
+      [
+        [0.02, 0],
+        [0.58, 0],
+        [0.58, 0.09],
+        [0.44, 0.15],
+        [0.38, 0.28],
+        [0.34, 0.42],
+        [0.36, 0.52],
+        [0.32, 0.58],
+      ],
+      mat,
+      s
+    )
+  );
+  // Double gold collar on the base (reads clearly from camera)
+  addGoldBands(g, goldMat, [
+    [0.11 * s, 0.46 * s, 0.026],
+    [0.22 * s, 0.38 * s, 0.02],
+  ]);
+
+  // Iconic Staunton side silhouette (units ≈ head height 1.0)
+  // Facing +X in shape space → after rot.y=-90°, faces -Z (toward Black for White).
+  const sh = new THREE.Shape();
+  // Chest / front of neck base
+  sh.moveTo(0.08, 0.0);
+  // Back of neck rising into mane
+  sh.bezierCurveTo(-0.02, 0.05, -0.08, 0.22, -0.06, 0.42);
+  sh.bezierCurveTo(-0.1, 0.58, -0.12, 0.72, -0.02, 0.86); // crest
+  // Mane notch (classic Staunton “cut”)
+  sh.bezierCurveTo(0.04, 0.94, 0.1, 0.98, 0.18, 0.96);
+  sh.bezierCurveTo(0.22, 0.9, 0.2, 0.84, 0.24, 0.82); // notch dip
+  // Forehead → long snout
+  sh.bezierCurveTo(0.32, 0.86, 0.42, 0.88, 0.52, 0.82);
+  sh.bezierCurveTo(0.62, 0.74, 0.72, 0.64, 0.8, 0.52); // nose bridge
+  sh.bezierCurveTo(0.86, 0.44, 0.88, 0.36, 0.84, 0.3); // muzzle tip
+  // Mouth undercut + jaw
+  sh.bezierCurveTo(0.76, 0.28, 0.68, 0.32, 0.6, 0.36);
+  sh.bezierCurveTo(0.52, 0.4, 0.46, 0.42, 0.4, 0.4);
+  sh.bezierCurveTo(0.34, 0.36, 0.3, 0.28, 0.28, 0.18); // throat
+  sh.bezierCurveTo(0.26, 0.1, 0.18, 0.02, 0.08, 0.0);
+  sh.closePath();
+
+  const headGeo = new THREE.ExtrudeGeometry(sh, {
+    depth: 0.48,
+    bevelEnabled: true,
+    bevelThickness: 0.055,
+    bevelSize: 0.05,
+    bevelSegments: 4,
+    curveSegments: 28,
+  });
+  headGeo.computeVertexNormals();
+  headGeo.translate(-0.12, 0.0, -0.24);
+
+  const head = new THREE.Mesh(headGeo, mat);
+  // Uniform-ish scale so silhouette stays horse-like (no Y giraffe stretch later)
+  const hs = s * 1.05;
+  head.scale.set(hs, hs * 1.05, hs * 0.95);
+  head.position.set(0, 0.3 * s, 0);
+  head.rotation.y = -Math.PI / 2; // shape +X (nose) → group −Z
+  head.castShadow = true;
+  head.receiveShadow = true;
+  g.add(head);
+
+  // Details are parented in HEAD local space (shape XY, extrude Z) so they track the nose.
+  // Twin pointed ears near the crest
+  function makeEar(side) {
+    const earSh = new THREE.Shape();
+    earSh.moveTo(0, 0);
+    earSh.lineTo(0.02, 0.22);
+    earSh.lineTo(0.1, 0.04);
+    earSh.closePath();
+    const ear = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(earSh, {
+        depth: 0.07,
+        bevelEnabled: true,
+        bevelThickness: 0.015,
+        bevelSize: 0.012,
+        bevelSegments: 2,
+      }),
+      mat
+    );
+    ear.geometry.translate(0, 0, -0.035);
+    // Local: crest ~ (0.18, 0.96), thickness along ±Z
+    ear.position.set(0.16, 0.92, side * 0.12);
+    ear.rotation.z = side * 0.1;
+    ear.castShadow = true;
+    head.add(ear);
+  }
+  makeEar(1);
+  makeEar(-1);
+
+  // Soft muzzle bulb at the snout tip
+  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 12), mat);
+  snout.scale.set(1.55, 0.85, 1.1);
+  snout.position.set(0.78, 0.34, 0);
+  snout.castShadow = true;
+  head.add(snout);
+
+  // Dark eyes on either side of the forehead
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a1008, roughness: 0.5 });
+  for (const side of [1, -1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), eyeMat);
+    eye.position.set(0.38, 0.72, side * 0.2);
+    head.add(eye);
+  }
+
+  // Mane ridge along the crest
+  const mane = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.32, 10), mat);
+  mane.position.set(0.05, 0.88, 0);
+  mane.rotation.z = 0.9;
+  mane.castShadow = true;
+  head.add(mane);
+
+  // Gold bridle across the muzzle (torus in YZ plane relative to head)
+  const bridle = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.018, 8, 24), goldMat);
+  bridle.position.set(0.48, 0.42, 0);
+  bridle.rotation.y = Math.PI / 2;
+  bridle.castShadow = true;
+  head.add(bridle);
+
+  return g;
+}
+
 /** Classic Staunton proportions (relative height ~ pawn 1.0 … king 1.55). */
 function buildPiece(type, color, mats) {
   const mat = color === "w" ? mats.whitePiece : mats.blackPiece;
+  const gold = mats.goldBand;
   const g = new THREE.Group();
   g.userData = { type, color };
   const s = 0.52; // footprint vs square size 1.0
@@ -236,6 +389,10 @@ function buildPiece(type, color, mats) {
         s
       )
     );
+    addGoldBands(g, gold, [
+      [0.14 * s, 0.42 * s, 0.03],
+      [0.78 * s, 0.3 * s, 0.022],
+    ]);
   } else if (type === "r") {
     g.add(
       lathe(
@@ -260,66 +417,14 @@ function buildPiece(type, color, mats) {
       batt.castShadow = true;
       g.add(batt);
     }
+    addGoldBands(g, gold, [
+      [0.14 * s, 0.44 * s, 0.03],
+      [0.88 * s, 0.42 * s, 0.024],
+    ]);
   } else if (type === "n") {
-    // Clean pedestal
-    g.add(
-      lathe(
-        [
-          [0.02, 0],
-          [0.54, 0],
-          [0.54, 0.1],
-          [0.4, 0.16],
-          [0.34, 0.38],
-        ],
-        mat,
-        s
-      )
-    );
-    // Horse head — smooth silhouette extrude
-    const sh = new THREE.Shape();
-    sh.moveTo(0.0, 0.0);
-    sh.bezierCurveTo(-0.02, 0.15, 0.0, 0.35, 0.06, 0.5);
-    sh.bezierCurveTo(0.05, 0.62, 0.02, 0.72, 0.1, 0.82);
-    sh.bezierCurveTo(0.18, 0.92, 0.28, 0.96, 0.4, 0.92);
-    sh.bezierCurveTo(0.5, 0.88, 0.58, 0.78, 0.62, 0.66);
-    sh.bezierCurveTo(0.68, 0.58, 0.72, 0.48, 0.68, 0.42);
-    sh.bezierCurveTo(0.6, 0.4, 0.5, 0.44, 0.42, 0.48);
-    sh.bezierCurveTo(0.34, 0.5, 0.28, 0.42, 0.24, 0.3);
-    sh.bezierCurveTo(0.2, 0.16, 0.12, 0.05, 0.0, 0.0);
-    const head = new THREE.Mesh(
-      new THREE.ExtrudeGeometry(sh, {
-        depth: 0.32,
-        bevelEnabled: true,
-        bevelThickness: 0.04,
-        bevelSize: 0.035,
-        bevelSegments: 4,
-        curveSegments: 28,
-      }),
-      mat
-    );
-    head.geometry.translate(-0.1, 0, -0.16);
-    head.scale.setScalar(s * 1.05);
-    head.position.set(0, 0.22, 0);
-    head.rotation.y = -Math.PI / 2;
-    head.castShadow = true;
-    head.receiveShadow = true;
-    g.add(head);
-    // Ear
-    const earSh = new THREE.Shape();
-    earSh.moveTo(0, 0);
-    earSh.lineTo(0.04, 0.16);
-    earSh.lineTo(0.1, 0.04);
-    earSh.closePath();
-    const ear = new THREE.Mesh(
-      new THREE.ExtrudeGeometry(earSh, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 2 }),
-      mat
-    );
-    ear.geometry.translate(0, 0, -0.04);
-    ear.scale.setScalar(s * 1.05);
-    ear.position.set(0.02, 0.22 + 0.82 * s * 1.05, 0.04);
-    ear.rotation.y = -Math.PI / 2;
-    ear.castShadow = true;
-    g.add(ear);
+    const knight = buildKnight(mat, gold, s);
+    while (knight.children.length) g.add(knight.children[0]);
+    g.userData.noTallStretch = true; // horse silhouette stays correct
   } else if (type === "b") {
     g.add(
       lathe(
@@ -339,10 +444,14 @@ function buildPiece(type, color, mats) {
     );
     const slit = new THREE.Mesh(
       new THREE.BoxGeometry(0.04, 0.14, 0.14),
-      new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.55 })
+      new THREE.MeshStandardMaterial({ color: 0x1a1008, roughness: 0.55 })
     );
     slit.position.y = 0.58;
     g.add(slit);
+    addGoldBands(g, gold, [
+      [0.14 * s, 0.42 * s, 0.03],
+      [0.82 * s, 0.28 * s, 0.022],
+    ]);
   } else if (type === "q") {
     g.add(
       lathe(
@@ -367,6 +476,17 @@ function buildPiece(type, color, mats) {
       pearl.castShadow = true;
       g.add(pearl);
     }
+    // Gold tips on coronet
+    for (let i = 0; i < 8; i++) {
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), gold);
+      const a = (i / 8) * Math.PI * 2;
+      tip.position.set(Math.cos(a) * 0.16, 0.78, Math.sin(a) * 0.16);
+      g.add(tip);
+    }
+    addGoldBands(g, gold, [
+      [0.14 * s, 0.46 * s, 0.032],
+      [0.92 * s, 0.34 * s, 0.024],
+    ]);
   } else if (type === "k") {
     g.add(
       lathe(
@@ -384,18 +504,23 @@ function buildPiece(type, color, mats) {
         s
       )
     );
-    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.07), mat);
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.07), gold);
     crossV.position.y = 0.82;
     crossV.castShadow = true;
     g.add(crossV);
-    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.07, 0.07), mat);
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.07, 0.07), gold);
     crossH.position.y = 0.88;
     crossH.castShadow = true;
     g.add(crossH);
+    addGoldBands(g, gold, [
+      [0.14 * s, 0.46 * s, 0.032],
+      [0.98 * s, 0.34 * s, 0.024],
+    ]);
   }
 
-  // 50% taller, same footprint
-  g.scale.set(1, 1.5, 1);
+  // 50% taller for lathed pieces; knights keep horse proportions
+  if (g.userData.noTallStretch) g.scale.set(1.08, 1.22, 1.08);
+  else g.scale.set(1, 1.5, 1);
   const box = new THREE.Box3().setFromObject(g);
   g.position.y = -box.min.y;
   return g;
@@ -694,82 +819,213 @@ export function createChess3D(container, hooks = {}) {
     });
   }
 
+  function makeTntLabel() {
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 128;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#f5e6c8";
+    ctx.fillRect(0, 0, 256, 128);
+    ctx.fillStyle = "#1a0800";
+    ctx.font = "bold 72px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("TNT", 128, 68);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  function makeTntStick() {
+    const stick = new THREE.Group();
+    // Oversized so it reads clearly on the marble board
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.22, 0.95, 20),
+      new THREE.MeshStandardMaterial({
+        color: 0xc62828,
+        roughness: 0.4,
+        metalness: 0.15,
+        emissive: 0x4a0000,
+        emissiveIntensity: 0.25,
+      })
+    );
+    body.rotation.z = Math.PI / 2;
+    body.castShadow = true;
+    stick.add(body);
+
+    const band = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.235, 0.235, 0.34, 20),
+      new THREE.MeshStandardMaterial({
+        map: makeTntLabel(),
+        color: 0xffffff,
+        roughness: 0.65,
+      })
+    );
+    band.rotation.z = Math.PI / 2;
+    stick.add(band);
+
+    const fuse = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.03, 0.32, 6),
+      new THREE.MeshStandardMaterial({ color: 0x8a6a40, roughness: 0.8 })
+    );
+    fuse.position.set(0.55, 0.12, 0);
+    fuse.rotation.z = -0.55;
+    stick.add(fuse);
+
+    const spark = new THREE.Mesh(
+      new THREE.SphereGeometry(0.09, 10, 10),
+      new THREE.MeshStandardMaterial({
+        color: 0xffe566,
+        emissive: 0xff8800,
+        emissiveIntensity: 3.2,
+      })
+    );
+    spark.position.set(0.68, 0.26, 0);
+    spark.name = "spark";
+    stick.add(spark);
+
+    // Soft glow halo so the stick pops against marble
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.55, 12, 12),
+      new THREE.MeshBasicMaterial({
+        color: 0xff6622,
+        transparent: true,
+        opacity: 0.22,
+        depthWrite: false,
+      })
+    );
+    glow.name = "glow";
+    stick.add(glow);
+
+    stick.scale.setScalar(1.35);
+    return stick;
+  }
+
   async function playCaptureSequence(capSq, attackerFrom, attackerTo) {
     const victim = pieceMap.get(capSq);
     const dest = sqToWorld(capSq);
-    const tntMat = new THREE.MeshStandardMaterial({ color: 0xb71c1c, roughness: 0.5 });
-    const tnt = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.28, 12), tntMat);
-    tnt.rotation.z = Math.PI / 2;
-    tnt.position.set(dest.x, 2.2, dest.z);
+    const landY = victim ? victim.position.y + 0.55 : 1.1;
+    const startY = 5.2;
+
+    // TNT drops from above and bounces onto the captured square
+    const tnt = makeTntStick();
+    tnt.position.set(dest.x, startY, dest.z);
+    tnt.rotation.set(0.25, -0.5, 0.15);
     root.add(tnt);
+
     await new Promise((resolve) => {
       const t0 = performance.now();
       (function frame(now) {
-        const t = Math.min(1, (now - t0) / 520);
-        const e = 1 - Math.pow(1 - t, 3);
-        tnt.position.y = 2.2 + (0.55 - 2.2) * e + Math.abs(Math.sin(t * Math.PI * 2)) * 0.15 * (1 - t);
-        tnt.rotation.y = t * 4;
+        const t = Math.min(1, (now - t0) / 780);
+        // Ease down, then two visible bounces
+        const fall = 1 - Math.pow(1 - Math.min(t / 0.55, 1), 2.4);
+        let y = startY + (landY - startY) * fall;
+        if (t > 0.55) {
+          const u = (t - 0.55) / 0.45;
+          const bounce = Math.abs(Math.sin(u * Math.PI * 2.15)) * 0.85 * (1 - u);
+          y = landY + bounce;
+        }
+        tnt.position.y = y;
+        tnt.rotation.y = -0.5 + t * 4.2;
+        tnt.rotation.z = 0.15 + Math.sin(t * Math.PI * 3.2) * 0.45 * (1 - t);
+        tnt.rotation.x = 0.25 * (1 - t);
+        const spark = tnt.getObjectByName("spark");
+        if (spark) spark.scale.setScalar(0.85 + Math.sin(now * 0.05) * 0.45);
+        const glow = tnt.getObjectByName("glow");
+        if (glow) glow.material.opacity = 0.15 + Math.sin(now * 0.03) * 0.1;
         if (t < 1) requestAnimationFrame(frame);
         else resolve();
       })(performance.now());
     });
+
+    // Fuse fizz — stick sits on the square so you can see it
+    await new Promise((r) => setTimeout(r, 380));
+
+    // Victim shakes while TNT sits there
     if (victim) {
       const ox = victim.position.x;
+      const oz = victim.position.z;
       await new Promise((resolve) => {
         const t0 = performance.now();
         (function frame(now) {
-          const t = Math.min(1, (now - t0) / 420);
-          victim.position.x = ox + Math.sin(t * Math.PI * 10) * 0.06 * (1 - t);
-          victim.rotation.z = Math.sin(t * Math.PI * 8) * 0.12 * (1 - t);
+          const t = Math.min(1, (now - t0) / 520);
+          victim.position.x = ox + Math.sin(t * Math.PI * 14) * 0.1 * (1 - t);
+          victim.position.z = oz + Math.cos(t * Math.PI * 12) * 0.07 * (1 - t);
+          victim.rotation.z = Math.sin(t * Math.PI * 12) * 0.22 * (1 - t);
+          const spark = tnt.getObjectByName("spark");
+          if (spark) spark.scale.setScalar(1 + Math.sin(now * 0.06) * 0.6);
           if (t < 1) requestAnimationFrame(frame);
           else {
             victim.position.x = ox;
+            victim.position.z = oz;
             victim.rotation.z = 0;
             resolve();
           }
         })(performance.now());
       });
     }
+
     root.remove(tnt);
     if (victim) {
       piecesGroup.remove(victim);
       pieceMap.delete(capSq);
     }
+
+    // Bigger explosion burst
     const parts = [];
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 32; i++) {
       const p = new THREE.Mesh(
-        new THREE.SphereGeometry(0.035 + Math.random() * 0.04, 6, 6),
+        new THREE.SphereGeometry(0.05 + Math.random() * 0.09, 6, 6),
         new THREE.MeshStandardMaterial({
-          color: i % 2 ? 0xffcc44 : 0xff5522,
+          color: i % 3 === 0 ? 0xffe066 : i % 3 === 1 ? 0xff5522 : 0xffaa33,
           emissive: 0xff4400,
-          emissiveIntensity: 0.5,
+          emissiveIntensity: 1.1,
         })
       );
-      p.position.set(dest.x, 0.5, dest.z);
+      p.position.set(dest.x, landY, dest.z);
       p.userData.v = new THREE.Vector3(
-        (Math.random() - 0.5) * 0.16,
-        0.08 + Math.random() * 0.12,
-        (Math.random() - 0.5) * 0.16
+        (Math.random() - 0.5) * 0.32,
+        0.12 + Math.random() * 0.22,
+        (Math.random() - 0.5) * 0.32
       );
       root.add(p);
       parts.push(p);
     }
+    const flash = new THREE.Mesh(
+      new THREE.CircleGeometry(0.9, 28),
+      new THREE.MeshBasicMaterial({
+        color: 0xffcc66,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    flash.rotation.x = -Math.PI / 2;
+    flash.position.set(dest.x, landY + 0.05, dest.z);
+    root.add(flash);
+
     await new Promise((resolve) => {
       const t0 = performance.now();
       (function frame(now) {
-        const t = Math.min(1, (now - t0) / 500);
+        const t = Math.min(1, (now - t0) / 600);
         for (const p of parts) {
           p.position.add(p.userData.v);
-          p.userData.v.y -= 0.006;
-          p.scale.multiplyScalar(0.97);
+          p.userData.v.y -= 0.008;
+          p.scale.multiplyScalar(0.955);
         }
+        flash.scale.setScalar(1 + t * 2.4);
+        flash.material.opacity = 0.95 * (1 - t);
         if (t < 1) requestAnimationFrame(frame);
         else {
           for (const p of parts) root.remove(p);
+          root.remove(flash);
           resolve();
         }
       })(performance.now());
     });
+
     await animatePieceMove(attackerFrom, attackerTo, { duration: 450 });
   }
 
