@@ -39,47 +39,54 @@ function woodTexture(base, grain, opts = {}) {
   return tex;
 }
 
-/** Carved marble: colour map + bump map for polished stone with veins. */
+/** Carved marble: bold veins + bump (readable on small pieces). */
 function marbleMaps(kind = "white") {
-  const size = 512;
+  const size = 768;
   const c = document.createElement("canvas");
   c.width = c.height = size;
   const ctx = c.getContext("2d");
   const bump = document.createElement("canvas");
   bump.width = bump.height = size;
   const bctx = bump.getContext("2d");
+  const rough = document.createElement("canvas");
+  rough.width = rough.height = size;
+  const rctx = rough.getContext("2d");
 
   const isWhite = kind === "white";
-  // Base stone
   if (isWhite) {
     const g = ctx.createLinearGradient(0, 0, size, size);
-    g.addColorStop(0, "#f7f2ea");
-    g.addColorStop(0.45, "#efe6d8");
-    g.addColorStop(1, "#e4d9c8");
+    g.addColorStop(0, "#fffaf3");
+    g.addColorStop(0.35, "#f0e6d6");
+    g.addColorStop(0.7, "#e8dcc8");
+    g.addColorStop(1, "#ddd0bc");
     ctx.fillStyle = g;
   } else {
     const g = ctx.createLinearGradient(0, 0, size, size);
-    g.addColorStop(0, "#2a2a2e");
-    g.addColorStop(0.5, "#1a1a1e");
-    g.addColorStop(1, "#121214");
+    g.addColorStop(0, "#3a3a42");
+    g.addColorStop(0.4, "#222228");
+    g.addColorStop(1, "#0e0e12");
     ctx.fillStyle = g;
   }
   ctx.fillRect(0, 0, size, size);
-  bctx.fillStyle = "#808080";
+  bctx.fillStyle = "#888888";
   bctx.fillRect(0, 0, size, size);
+  rctx.fillStyle = "#b0b0b0";
+  rctx.fillRect(0, 0, size, size);
 
-  // Soft cloudy mottling
-  for (let i = 0; i < 90; i++) {
+  // Strong cloudy mineral patches
+  for (let i = 0; i < 160; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const r = 20 + Math.random() * 70;
+    const r = 25 + Math.random() * 110;
     const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
     if (isWhite) {
-      grd.addColorStop(0, "rgba(255,255,255,0.22)");
+      const dark = Math.random() > 0.55;
+      grd.addColorStop(0, dark ? "rgba(140,130,120,0.45)" : "rgba(255,255,255,0.4)");
       grd.addColorStop(1, "rgba(200,190,175,0)");
     } else {
-      grd.addColorStop(0, "rgba(70,70,78,0.35)");
-      grd.addColorStop(1, "rgba(10,10,12,0)");
+      const light = Math.random() > 0.5;
+      grd.addColorStop(0, light ? "rgba(120,120,130,0.5)" : "rgba(0,0,0,0.45)");
+      grd.addColorStop(1, "rgba(20,20,24,0)");
     }
     ctx.fillStyle = grd;
     ctx.beginPath();
@@ -87,68 +94,107 @@ function marbleMaps(kind = "white") {
     ctx.fill();
   }
 
-  // Carved veins
-  const veinCount = isWhite ? 14 : 11;
-  for (let v = 0; v < veinCount; v++) {
+  function strokeVein(bold) {
     let x = Math.random() * size;
-    let y = Math.random() * size;
+    let y = -20 + Math.random() * size * 0.3;
     ctx.beginPath();
     bctx.beginPath();
+    rctx.beginPath();
     ctx.moveTo(x, y);
     bctx.moveTo(x, y);
-    const segs = 8 + Math.floor(Math.random() * 10);
+    rctx.moveTo(x, y);
+    const segs = 12 + Math.floor(Math.random() * 14);
     for (let s = 0; s < segs; s++) {
-      x += (Math.random() - 0.45) * 55;
-      y += (Math.random() - 0.4) * 48;
-      ctx.lineTo(x, y);
-      bctx.lineTo(x, y);
+      x += (Math.random() - 0.48) * (bold ? 70 : 45);
+      y += 18 + Math.random() * (bold ? 55 : 40);
+      const cx = x + (Math.random() - 0.5) * 40;
+      const cy = y + (Math.random() - 0.5) * 20;
+      ctx.quadraticCurveTo(cx, cy, x, y);
+      bctx.quadraticCurveTo(cx, cy, x, y);
+      rctx.quadraticCurveTo(cx, cy, x, y);
     }
     if (isWhite) {
-      ctx.strokeStyle = `rgba(${90 + Math.random() * 40},${90 + Math.random() * 30},${95 + Math.random() * 40},${0.28 + Math.random() * 0.35})`;
+      const a = bold ? 0.72 : 0.45;
+      ctx.strokeStyle = `rgba(${55 + Math.random() * 50},${50 + Math.random() * 40},${60 + Math.random() * 45},${a})`;
     } else {
-      ctx.strokeStyle = `rgba(${200 + Math.random() * 40},${200 + Math.random() * 40},${205 + Math.random() * 40},${0.2 + Math.random() * 0.35})`;
+      const a = bold ? 0.75 : 0.4;
+      ctx.strokeStyle = `rgba(${210 + Math.random() * 40},${210 + Math.random() * 40},${220 + Math.random() * 30},${a})`;
     }
-    ctx.lineWidth = 1.2 + Math.random() * 2.8;
+    ctx.lineWidth = bold ? 3.5 + Math.random() * 5 : 1.5 + Math.random() * 2.5;
+    ctx.lineJoin = "round";
     ctx.stroke();
-    // Bump: dark veins = carved grooves
-    bctx.strokeStyle = `rgba(0,0,0,${0.35 + Math.random() * 0.4})`;
-    bctx.lineWidth = 2 + Math.random() * 3.5;
+    // Soft halo vein
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.lineWidth += 4;
+    ctx.stroke();
+    ctx.restore();
+
+    bctx.strokeStyle = `rgba(0,0,0,${bold ? 0.75 : 0.45})`;
+    bctx.lineWidth = bold ? 5 + Math.random() * 5 : 2.5 + Math.random() * 3;
+    bctx.stroke();
+    rctx.strokeStyle = bold ? "#1a1a1a" : "#606060";
+    rctx.lineWidth = bold ? 4 : 2;
+    rctx.stroke();
+  }
+
+  // Primary bold veins + finer network
+  for (let v = 0; v < 10; v++) strokeVein(true);
+  for (let v = 0; v < 22; v++) strokeVein(false);
+
+  // Branching short cracks
+  for (let i = 0; i < 40; i++) {
+    const x0 = Math.random() * size;
+    const y0 = Math.random() * size;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + (Math.random() - 0.5) * 80, y0 + (Math.random() - 0.5) * 80);
+    if (isWhite) ctx.strokeStyle = `rgba(80,70,65,${0.35 + Math.random() * 0.35})`;
+    else ctx.strokeStyle = `rgba(230,230,235,${0.3 + Math.random() * 0.4})`;
+    ctx.lineWidth = 1 + Math.random() * 2;
+    ctx.stroke();
+    bctx.strokeStyle = "rgba(0,0,0,0.5)";
+    bctx.lineWidth = 2;
+    bctx.beginPath();
+    bctx.moveTo(x0, y0);
+    bctx.lineTo(x0 + (Math.random() - 0.5) * 80, y0 + (Math.random() - 0.5) * 80);
     bctx.stroke();
   }
 
-  // Fine carved tool marks / micro grain
-  for (let i = 0; i < 1200; i++) {
+  // Mineral flecks
+  for (let i = 0; i < 2500; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    ctx.globalAlpha = isWhite ? 0.04 : 0.06;
-    ctx.fillStyle = isWhite ? "#b0a898" : "#0a0a0c";
-    ctx.fillRect(x, y, 1.5, 1.5);
-    bctx.globalAlpha = 0.08;
-    bctx.fillStyle = Math.random() > 0.5 ? "#fff" : "#000";
-    bctx.fillRect(x, y, 1, 1);
+    ctx.globalAlpha = isWhite ? 0.08 : 0.1;
+    ctx.fillStyle = isWhite ? (Math.random() > 0.5 ? "#9a8f82" : "#fff") : (Math.random() > 0.5 ? "#ccc" : "#050508");
+    ctx.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
   }
   ctx.globalAlpha = 1;
-  bctx.globalAlpha = 1;
 
-  // Polished highlight wash
-  const shine = ctx.createLinearGradient(0, 0, size, size * 0.3);
-  shine.addColorStop(0, isWhite ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)");
+  const shine = ctx.createLinearGradient(0, 0, size, size * 0.4);
+  shine.addColorStop(0, isWhite ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.1)");
   shine.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = shine;
   ctx.fillRect(0, 0, size, size);
 
+  // Larger repeat so veins stay bold on piece scale
+  const rep = 1.15;
   const map = new THREE.CanvasTexture(c);
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
-  map.repeat.set(2.2, 2.2);
+  map.repeat.set(rep, rep);
   map.anisotropy = 8;
   map.colorSpace = THREE.SRGBColorSpace;
 
   const bumpMap = new THREE.CanvasTexture(bump);
   bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
-  bumpMap.repeat.set(2.2, 2.2);
+  bumpMap.repeat.set(rep, rep);
   bumpMap.anisotropy = 8;
 
-  return { map, bumpMap };
+  const roughnessMap = new THREE.CanvasTexture(rough);
+  roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping;
+  roughnessMap.repeat.set(rep, rep);
+
+  return { map, bumpMap, roughnessMap };
 }
 
 function makeMats() {
@@ -193,18 +239,20 @@ function makeMats() {
     whitePiece: new THREE.MeshStandardMaterial({
       map: whiteMarble.map,
       bumpMap: whiteMarble.bumpMap,
-      bumpScale: 0.045,
-      roughness: 0.22,
-      metalness: 0.08,
-      envMapIntensity: 1.25,
+      bumpScale: 0.12,
+      roughnessMap: whiteMarble.roughnessMap,
+      roughness: 0.35,
+      metalness: 0.06,
+      envMapIntensity: 1.15,
     }),
     blackPiece: new THREE.MeshStandardMaterial({
       map: blackMarble.map,
       bumpMap: blackMarble.bumpMap,
-      bumpScale: 0.05,
-      roughness: 0.26,
-      metalness: 0.1,
-      envMapIntensity: 1.15,
+      bumpScale: 0.14,
+      roughnessMap: blackMarble.roughnessMap,
+      roughness: 0.38,
+      metalness: 0.08,
+      envMapIntensity: 1.05,
     }),
     highlight: new THREE.MeshBasicMaterial({
       color: 0xf6c945,
