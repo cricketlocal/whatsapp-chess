@@ -39,11 +39,126 @@ function woodTexture(base, grain, opts = {}) {
   return tex;
 }
 
+/** Carved marble: colour map + bump map for polished stone with veins. */
+function marbleMaps(kind = "white") {
+  const size = 512;
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext("2d");
+  const bump = document.createElement("canvas");
+  bump.width = bump.height = size;
+  const bctx = bump.getContext("2d");
+
+  const isWhite = kind === "white";
+  // Base stone
+  if (isWhite) {
+    const g = ctx.createLinearGradient(0, 0, size, size);
+    g.addColorStop(0, "#f7f2ea");
+    g.addColorStop(0.45, "#efe6d8");
+    g.addColorStop(1, "#e4d9c8");
+    ctx.fillStyle = g;
+  } else {
+    const g = ctx.createLinearGradient(0, 0, size, size);
+    g.addColorStop(0, "#2a2a2e");
+    g.addColorStop(0.5, "#1a1a1e");
+    g.addColorStop(1, "#121214");
+    ctx.fillStyle = g;
+  }
+  ctx.fillRect(0, 0, size, size);
+  bctx.fillStyle = "#808080";
+  bctx.fillRect(0, 0, size, size);
+
+  // Soft cloudy mottling
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = 20 + Math.random() * 70;
+    const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
+    if (isWhite) {
+      grd.addColorStop(0, "rgba(255,255,255,0.22)");
+      grd.addColorStop(1, "rgba(200,190,175,0)");
+    } else {
+      grd.addColorStop(0, "rgba(70,70,78,0.35)");
+      grd.addColorStop(1, "rgba(10,10,12,0)");
+    }
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Carved veins
+  const veinCount = isWhite ? 14 : 11;
+  for (let v = 0; v < veinCount; v++) {
+    let x = Math.random() * size;
+    let y = Math.random() * size;
+    ctx.beginPath();
+    bctx.beginPath();
+    ctx.moveTo(x, y);
+    bctx.moveTo(x, y);
+    const segs = 8 + Math.floor(Math.random() * 10);
+    for (let s = 0; s < segs; s++) {
+      x += (Math.random() - 0.45) * 55;
+      y += (Math.random() - 0.4) * 48;
+      ctx.lineTo(x, y);
+      bctx.lineTo(x, y);
+    }
+    if (isWhite) {
+      ctx.strokeStyle = `rgba(${90 + Math.random() * 40},${90 + Math.random() * 30},${95 + Math.random() * 40},${0.28 + Math.random() * 0.35})`;
+    } else {
+      ctx.strokeStyle = `rgba(${200 + Math.random() * 40},${200 + Math.random() * 40},${205 + Math.random() * 40},${0.2 + Math.random() * 0.35})`;
+    }
+    ctx.lineWidth = 1.2 + Math.random() * 2.8;
+    ctx.stroke();
+    // Bump: dark veins = carved grooves
+    bctx.strokeStyle = `rgba(0,0,0,${0.35 + Math.random() * 0.4})`;
+    bctx.lineWidth = 2 + Math.random() * 3.5;
+    bctx.stroke();
+  }
+
+  // Fine carved tool marks / micro grain
+  for (let i = 0; i < 1200; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    ctx.globalAlpha = isWhite ? 0.04 : 0.06;
+    ctx.fillStyle = isWhite ? "#b0a898" : "#0a0a0c";
+    ctx.fillRect(x, y, 1.5, 1.5);
+    bctx.globalAlpha = 0.08;
+    bctx.fillStyle = Math.random() > 0.5 ? "#fff" : "#000";
+    bctx.fillRect(x, y, 1, 1);
+  }
+  ctx.globalAlpha = 1;
+  bctx.globalAlpha = 1;
+
+  // Polished highlight wash
+  const shine = ctx.createLinearGradient(0, 0, size, size * 0.3);
+  shine.addColorStop(0, isWhite ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)");
+  shine.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = shine;
+  ctx.fillRect(0, 0, size, size);
+
+  const map = new THREE.CanvasTexture(c);
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(2.2, 2.2);
+  map.anisotropy = 8;
+  map.colorSpace = THREE.SRGBColorSpace;
+
+  const bumpMap = new THREE.CanvasTexture(bump);
+  bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
+  bumpMap.repeat.set(2.2, 2.2);
+  bumpMap.anisotropy = 8;
+
+  return { map, bumpMap };
+}
+
 function makeMats() {
   const maple = woodTexture("#f3e4c8", "#d2b896", { speck: "#a88860" });
   const walnut = woodTexture("#8a5a38", "#5a3820", { speck: "#2a1810" });
   const rosewood = woodTexture("#6a4030", "#3e2418", { speck: "#1a100c" });
   rosewood.repeat.set(2, 2);
+
+  const whiteMarble = marbleMaps("white");
+  const blackMarble = marbleMaps("black");
 
   return {
     lightSq: new THREE.MeshStandardMaterial({
@@ -76,16 +191,20 @@ function makeMats() {
       metalness: 0,
     }),
     whitePiece: new THREE.MeshStandardMaterial({
-      color: 0xfff6e8,
-      roughness: 0.28,
-      metalness: 0.1,
-      envMapIntensity: 1.1,
+      map: whiteMarble.map,
+      bumpMap: whiteMarble.bumpMap,
+      bumpScale: 0.045,
+      roughness: 0.22,
+      metalness: 0.08,
+      envMapIntensity: 1.25,
     }),
     blackPiece: new THREE.MeshStandardMaterial({
-      color: 0x2a201c,
-      roughness: 0.34,
-      metalness: 0.12,
-      envMapIntensity: 0.95,
+      map: blackMarble.map,
+      bumpMap: blackMarble.bumpMap,
+      bumpScale: 0.05,
+      roughness: 0.26,
+      metalness: 0.1,
+      envMapIntensity: 1.15,
     }),
     highlight: new THREE.MeshBasicMaterial({
       color: 0xf6c945,
@@ -116,7 +235,7 @@ function makeMats() {
 
 function lathe(points, mat, scale = 1) {
   const pts = points.map(([x, y]) => new THREE.Vector2(x * scale, y * scale));
-  const geo = new THREE.LatheGeometry(pts, 24);
+  const geo = new THREE.LatheGeometry(pts, 48);
   geo.computeVertexNormals();
   const m = new THREE.Mesh(geo, mat);
   m.castShadow = true;
@@ -210,7 +329,7 @@ export function createChess3D(container, hooks = {}) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.35;
+  renderer.toneMappingExposure = 1.28;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
 
@@ -236,26 +355,40 @@ export function createChess3D(container, hooks = {}) {
     controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   }
 
-  // Brighter studio lighting
-  const hemi = new THREE.HemisphereLight(0xfff8ee, 0xc4b8a4, 1.05);
+  // Studio lighting — strong key for crisp piece shadows on the board
+  const hemi = new THREE.HemisphereLight(0xfff8ee, 0xb8a890, 0.75);
   scene.add(hemi);
-  const key = new THREE.DirectionalLight(0xffffff, 1.75);
-  key.position.set(5, 12, 6);
+  const key = new THREE.DirectionalLight(0xffffff, 2.05);
+  key.position.set(6.5, 14, 7);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.mapSize.set(4096, 4096);
   key.shadow.camera.near = 1;
-  key.shadow.camera.far = 30;
-  key.shadow.camera.left = key.shadow.camera.bottom = -10;
-  key.shadow.camera.right = key.shadow.camera.top = 10;
-  key.shadow.bias = -0.0002;
+  key.shadow.camera.far = 40;
+  key.shadow.camera.left = key.shadow.camera.bottom = -11;
+  key.shadow.camera.right = key.shadow.camera.top = 11;
+  key.shadow.bias = -0.00015;
+  key.shadow.normalBias = 0.02;
+  key.shadow.radius = 2.5;
   scene.add(key);
-  const fill = new THREE.DirectionalLight(0xe8f0ff, 0.75);
+  // Soft secondary shadow caster
+  const key2 = new THREE.DirectionalLight(0xfff0dd, 0.55);
+  key2.position.set(-4, 10, 3);
+  key2.castShadow = true;
+  key2.shadow.mapSize.set(2048, 2048);
+  key2.shadow.camera.near = 1;
+  key2.shadow.camera.far = 35;
+  key2.shadow.camera.left = key2.shadow.camera.bottom = -10;
+  key2.shadow.camera.right = key2.shadow.camera.top = 10;
+  key2.shadow.bias = -0.0002;
+  key2.shadow.radius = 4;
+  scene.add(key2);
+  const fill = new THREE.DirectionalLight(0xe8f0ff, 0.55);
   fill.position.set(-6, 6, -4);
   scene.add(fill);
-  const rim = new THREE.PointLight(0xffe2a8, 0.85, 24);
+  const rim = new THREE.PointLight(0xffe2a8, 0.7, 24);
   rim.position.set(0, 5, -6);
   scene.add(rim);
-  const ambient = new THREE.AmbientLight(0xfff5e8, 0.35);
+  const ambient = new THREE.AmbientLight(0xfff5e8, 0.22);
   scene.add(ambient);
 
   const root = new THREE.Group();
