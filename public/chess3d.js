@@ -29,18 +29,20 @@ function makeMarble(kind) {
   bx.fillStyle = "#888";
   bx.fillRect(0, 0, size, size);
 
-  // Soft mineral clouds
-  for (let i = 0; i < 55; i++) {
+  // Mineral clouds — denser for richer stone
+  for (let i = 0; i < 95; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const r = 50 + Math.random() * 140;
+    const r = 40 + Math.random() * 160;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
     if (white) {
-      g.addColorStop(0, "rgba(255,255,255,0.45)");
-      g.addColorStop(0.5, "rgba(220,216,208,0.12)");
+      const dark = Math.random() > 0.55;
+      g.addColorStop(0, dark ? "rgba(195,190,182,0.35)" : "rgba(255,255,255,0.5)");
+      g.addColorStop(0.55, "rgba(230,226,218,0.1)");
       g.addColorStop(1, "rgba(244,241,234,0)");
     } else {
-      g.addColorStop(0, "rgba(50,50,58,0.5)");
+      const light = Math.random() > 0.5;
+      g.addColorStop(0, light ? "rgba(70,70,80,0.55)" : "rgba(8,8,10,0.45)");
       g.addColorStop(1, "rgba(18,18,22,0)");
     }
     ctx.fillStyle = g;
@@ -49,8 +51,8 @@ function makeMarble(kind) {
     ctx.fill();
   }
 
-  // Flowing veins — restrained, like real Carrara / Nero
-  const veinN = white ? 9 : 8;
+  // Flowing veins — more visible on pieces
+  const veinN = white ? 14 : 12;
   for (let v = 0; v < veinN; v++) {
     let x = Math.random() * size;
     let y = -30;
@@ -58,32 +60,60 @@ function makeMarble(kind) {
     bx.beginPath();
     ctx.moveTo(x, y);
     bx.moveTo(x, y);
-    for (let s = 0; s < 18; s++) {
-      x += (Math.random() - 0.5) * 55;
-      y += 20 + Math.random() * 45;
-      const cpx = x + (Math.random() - 0.5) * 70;
+    for (let s = 0; s < 20; s++) {
+      x += (Math.random() - 0.5) * 60;
+      y += 18 + Math.random() * 48;
+      const cpx = x + (Math.random() - 0.5) * 75;
       const cpy = y - 8;
       ctx.quadraticCurveTo(cpx, cpy, x, y);
       bx.quadraticCurveTo(cpx, cpy, x, y);
     }
-    const bold = v < 3;
+    const bold = v < 5;
     if (white) {
-      ctx.strokeStyle = `rgba(130,128,135,${bold ? 0.42 : 0.18})`;
+      ctx.strokeStyle = `rgba(110,108,115,${bold ? 0.55 : 0.26})`;
     } else {
-      ctx.strokeStyle = `rgba(200,200,210,${bold ? 0.4 : 0.16})`;
+      ctx.strokeStyle = `rgba(210,210,220,${bold ? 0.55 : 0.24})`;
     }
-    ctx.lineWidth = bold ? 2.2 + Math.random() * 1.8 : 0.8 + Math.random();
+    ctx.lineWidth = bold ? 2.6 + Math.random() * 2.4 : 1.0 + Math.random() * 1.4;
     ctx.lineJoin = "round";
     ctx.stroke();
-    bx.strokeStyle = `rgba(0,0,0,${bold ? 0.45 : 0.2})`;
-    bx.lineWidth = ctx.lineWidth + 1;
+    // soft halo
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    ctx.lineWidth += 3;
+    ctx.stroke();
+    ctx.restore();
+    bx.strokeStyle = `rgba(0,0,0,${bold ? 0.55 : 0.28})`;
+    bx.lineWidth = ctx.lineWidth + 1.5;
+    bx.stroke();
+  }
+
+  // Short branch cracks
+  for (let i = 0; i < 28; i++) {
+    const x0 = Math.random() * size;
+    const y0 = Math.random() * size;
+    const x1 = x0 + (Math.random() - 0.5) * 90;
+    const y1 = y0 + (Math.random() - 0.5) * 90;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.strokeStyle = white
+      ? `rgba(100,98,105,${0.2 + Math.random() * 0.25})`
+      : `rgba(200,200,210,${0.18 + Math.random() * 0.28})`;
+    ctx.lineWidth = 0.8 + Math.random() * 1.6;
+    ctx.stroke();
+    bx.strokeStyle = "rgba(0,0,0,0.35)";
+    bx.lineWidth = 2;
+    bx.beginPath();
+    bx.moveTo(x0, y0);
+    bx.lineTo(x1, y1);
     bx.stroke();
   }
 
   // Micro polish grain
-  for (let i = 0; i < 600; i++) {
-    ctx.globalAlpha = white ? 0.025 : 0.04;
-    ctx.fillStyle = white ? "#bbb6ae" : "#050508";
+  for (let i = 0; i < 1100; i++) {
+    ctx.globalAlpha = white ? 0.035 : 0.05;
+    ctx.fillStyle = white ? "#b8b3aa" : "#050508";
     ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
   }
   ctx.globalAlpha = 1;
@@ -133,8 +163,9 @@ function makeMats() {
     lightSq: stoneMat(white, { bump: 0.018, rough: 0.16, coat: 0.7, rep: 2.2 }),
     darkSq: stoneMat(black, { bump: 0.02, rough: 0.18, coat: 0.6, rep: 2.2 }),
     frame: stoneMat(white, { bump: 0.028, rough: 0.15, coat: 0.75, rep: 3.0 }),
-    whitePiece: stoneMat(white, { bump: 0.04, rough: 0.14, coat: 0.8, rep: 1.5 }),
-    blackPiece: stoneMat(black, { bump: 0.045, rough: 0.16, coat: 0.75, rep: 1.5 }),
+    // Stronger bump + slightly larger veins on pieces
+    whitePiece: stoneMat(white, { bump: 0.09, rough: 0.18, coat: 0.75, rep: 1.15 }),
+    blackPiece: stoneMat(black, { bump: 0.1, rough: 0.2, coat: 0.7, rep: 1.15 }),
     floor: new THREE.MeshStandardMaterial({ color: 0xe8e8ea, roughness: 0.88, metalness: 0 }),
     edge: new THREE.MeshPhysicalMaterial({
       color: 0xe8e4dc,
@@ -362,6 +393,8 @@ function buildPiece(type, color, mats) {
     g.add(crossH);
   }
 
+  // 50% taller, same footprint
+  g.scale.set(1, 1.5, 1);
   const box = new THREE.Box3().setFromObject(g);
   g.position.y = -box.min.y;
   return g;
