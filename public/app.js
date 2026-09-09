@@ -62,11 +62,24 @@ const promoEl = document.getElementById("promo");
 const promoBtns = document.getElementById("promo-btns");
 const hintOut = document.getElementById("hint-out");
 
-const board3d = createChess3D(board3dEl, {
-  onSquareClick(sq) {
-    onSquare(sq);
-  },
-});
+let board3d = null;
+try {
+  board3d = createChess3D(board3dEl, {
+    onSquareClick(sq) {
+      onSquare(sq);
+    },
+  });
+} catch (err) {
+  console.error("3D board failed", err);
+  board3dEl.innerHTML =
+    '<p style="color:#f5e6c8;padding:1rem;text-align:center">3D board failed to load. Check network / refresh.<br><small>' +
+    String(err && err.message ? err.message : err) +
+    "</small></p>";
+}
+
+function ensure3d() {
+  return board3d;
+}
 
 function flipped() {
   return you === "b";
@@ -144,6 +157,7 @@ function legalTargets(from) {
 }
 
 function renderBoard() {
+  if (!board3d) return;
   if (!animating) {
     board3d.syncFromGame(game, you);
   }
@@ -429,6 +443,7 @@ function spawnFlyer(fromSq, toSq, extraClass) {
 }
 
 async function animateMove(move) {
+  if (!board3d) return;
   const isCapture = !!move.captured;
   const capSq = captureSquareFor(move);
   const rook = castleRookSquares(move);

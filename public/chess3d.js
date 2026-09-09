@@ -2,9 +2,8 @@
  * Luxury handmade 3D chess board — Three.js
  * Swipe L/R to rotate, U/D to tilt. Square picking via raycast.
  */
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js";
-import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/OrbitControls.js";
-import { RoomEnvironment } from "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/environments/RoomEnvironment.js";
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const FILE = "abcdefgh";
 const SQ = 1;
@@ -215,11 +214,8 @@ export function createChess3D(container, hooks = {}) {
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1a1512);
-  scene.fog = new THREE.Fog(0x1a1512, 14, 28);
-
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.background = new THREE.Color(0x2a221c);
+  scene.fog = new THREE.Fog(0x2a221c, 16, 32);
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 80);
   camera.position.set(0, 9.5, 11.5);
@@ -235,7 +231,9 @@ export function createChess3D(container, hooks = {}) {
   controls.target.set(0, 0.2, 0);
   controls.rotateSpeed = 0.65;
   // One-finger rotate (azimuth + polar) = swipe L/R and U/D
-  controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+  if (THREE.TOUCH) {
+    controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+  }
 
   // Lights
   const hemi = new THREE.HemisphereLight(0xfff2e0, 0x2a2018, 0.55);
@@ -582,9 +580,13 @@ export function createChess3D(container, hooks = {}) {
   const ro = new ResizeObserver(() => resize());
   ro.observe(container);
   resize();
+  // Second layout pass — mobile browsers often report 0×0 on first paint
+  requestAnimationFrame(() => {
+    resize();
+    requestAnimationFrame(resize);
+  });
   loop();
 
-  // Initial camera ease
   controls.update();
 
   return {
