@@ -183,9 +183,15 @@ function makeMats() {
       envMapIntensity: 1.35,
     }),
     highlight: new THREE.MeshBasicMaterial({
-      color: 0xf0c94a,
+      color: 0xffe066,
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.78,
+      depthWrite: false,
+    }),
+    highlightRing: new THREE.MeshBasicMaterial({
+      color: 0xffcc22,
+      transparent: true,
+      opacity: 0.95,
       depthWrite: false,
     }),
     lastMove: new THREE.MeshBasicMaterial({
@@ -608,6 +614,7 @@ export function createChess3D(container, hooks = {}) {
   root.add(squares);
   const pickables = [];
   const overlays = new Map();
+  const selectFrames = new Map();
   const sqSize = SQ - GAP;
 
   for (let rank = 0; rank < 8; rank++) {
@@ -633,6 +640,39 @@ export function createChess3D(container, hooks = {}) {
       ov.visible = false;
       root.add(ov);
       overlays.set(sq, ov);
+
+      // Thick gold frame for selected square (much more visible than a wash alone)
+      const frame = new THREE.Group();
+      frame.visible = false;
+      const fw = sqSize * 0.96;
+      const ft = 0.07;
+      const fh = 0.05;
+      const mkBar = (w, d) => {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(w, fh, d), mats.highlightRing);
+        bar.position.y = 0.32;
+        frame.add(bar);
+        return bar;
+      };
+      mkBar(fw, ft).position.set(x, 0.32, z - fw / 2 + ft / 2);
+      mkBar(fw, ft).position.set(x, 0.32, z + fw / 2 - ft / 2);
+      mkBar(ft, fw).position.set(x - fw / 2 + ft / 2, 0.32, z);
+      mkBar(ft, fw).position.set(x + fw / 2 - ft / 2, 0.32, z);
+      // Soft glow disc under the piece
+      const glow = new THREE.Mesh(
+        new THREE.CircleGeometry(sqSize * 0.42, 24),
+        new THREE.MeshBasicMaterial({
+          color: 0xfff0a0,
+          transparent: true,
+          opacity: 0.55,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        })
+      );
+      glow.rotation.x = -Math.PI / 2;
+      glow.position.set(x, 0.33, z);
+      frame.add(glow);
+      root.add(frame);
+      selectFrames.set(sq, frame);
     }
   }
 
@@ -701,8 +741,10 @@ export function createChess3D(container, hooks = {}) {
     );
     for (const [sq, ov] of overlays) {
       ov.visible = false;
+      ov.scale.set(1, 1, 1);
       if (sq === selected) {
         ov.material = mats.highlight;
+        ov.scale.set(1.05, 1.05, 1.05);
         ov.visible = true;
       } else if (sq === lastFrom || sq === lastTo) {
         ov.material = mats.lastMove;
@@ -713,6 +755,38 @@ export function createChess3D(container, hooks = {}) {
       } else if (legalSet.has(sq)) {
         ov.material = mats.legal;
         ov.visible = true;
+      }
+    }
+    for (const [sq, frame] of selectFrames) {
+      frame.visible = sq === selected;
+    }
+    // Lift / brighten the selected piece slightly so it pops
+    for (const [sq, mesh] of pieceMap) {
+      const baseY = mesh.userData.baseY ?? mesh.position.y;
+      if (mesh.userData.baseY == null) mesh.userData.baseY = mesh.position.y;
+      if (sq === selected) {
+        mesh.position.y = mesh.userData.baseY + 0.12;
+        mesh.traverse((o) => {
+          if (o.isMesh && o.material && o.material.emissive) {
+            if (!o.userData._emBackup) {
+              o.userData._emBackup = {
+                color: o.material.emissive.getHex(),
+                intensity: o.material.emissiveIntensity ?? 0,
+              };
+            }
+            o.material.emissive.setHex(0xffcc44);
+            o.material.emissiveIntensity = 0.45;
+          }
+        });
+      } else {
+        mesh.position.y = mesh.userData.baseY;
+        mesh.traverse((o) => {
+          if (o.isMesh && o.material && o.userData._emBackup) {
+            o.material.emissive.setHex(o.userData._emBackup.color);
+            o.material.emissiveIntensity = o.userData._emBackup.intensity;
+            delete o.userData._emBackup;
+          }
+        });
       }
     }
   }
