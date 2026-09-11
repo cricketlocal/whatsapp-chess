@@ -545,6 +545,9 @@ export function createChess3D(container, hooks = {}) {
   controls.maxPolarAngle = 1.2;
   controls.target.set(0, 0.15, 0);
   controls.rotateSpeed = 0.7;
+  // OrbitControls is not an Object3D — give it a userData bag for our flags
+  if (!controls.userData) controls.userData = {};
+  let blackOriented = false;
   // Drag = orbit. Short tap = select (see pointer handlers below).
   if (THREE.MOUSE) {
     controls.mouseButtons = {
@@ -751,8 +754,11 @@ export function createChess3D(container, hooks = {}) {
         placePiece(FILE[c] + (8 - r), cell.type, cell.color);
       }
     }
-    if (orientation === "b" && !controls.userData._oriented) {
+    if (orientation === "b" && !blackOriented) {
       camera.position.set(0, 8.8, -10.8);
+      controls.target.set(0, 0.15, 0);
+      controls.update();
+      blackOriented = true;
       controls.userData._oriented = true;
     }
   }

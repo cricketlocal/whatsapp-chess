@@ -1,5 +1,5 @@
 import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
-import { createChess3D } from "./chess3d.js?v=20260911d";
+import { createChess3D } from "./chess3d.js?v=20260911f";
 
 const PIECE_SRC = {
   wK: "pieces-carved/wK.png", wQ: "pieces-carved/wQ.png", wR: "pieces-carved/wR.png",
@@ -127,18 +127,35 @@ function writeUrl() {
     next.searchParams.set("g", gameId);
   }
   next.searchParams.set("you", you);
-  const n = game.history().length;
-  if (n) next.searchParams.set("n", String(n));
+  const hist = game.history();
+  if (hist.length) {
+    next.searchParams.set("n", String(hist.length));
+    next.searchParams.set("fen", game.fen());
+    next.searchParams.set("m", hist.join("."));
+  }
+  if (lastMove) next.searchParams.set("last", lastMove);
   history.replaceState(null, "", next);
 }
 
+/** Link for the opponent — includes fen/moves so the first move shows even if save races. */
 function opponentUrl() {
   const u = new URL(location.origin + location.pathname);
   if (gameId) u.searchParams.set("g", gameId);
   u.searchParams.set("you", you === "w" ? "b" : "w");
-  const n = game.history().length;
-  if (n) u.searchParams.set("n", String(n));
+  const hist = game.history();
+  if (hist.length) {
+    u.searchParams.set("n", String(hist.length));
+    u.searchParams.set("fen", game.fen());
+    u.searchParams.set("m", hist.join("."));
+  }
+  if (lastMove) u.searchParams.set("last", lastMove);
   return u.toString();
+}
+
+function movesFromUrl() {
+  const raw = params.get("m") || "";
+  if (!raw) return [];
+  return raw.split(".").map((s) => s.trim()).filter(Boolean);
 }
 
 function moveMessage() {
@@ -539,7 +556,12 @@ async function tryMove(from, to, promotion) {
   writeUrl();
   renderBoard();
   renderStatus();
-  if (!vsAi) saveGame();
+  if (!vsAi) {
+    const saved = await saveGame();
+    if (!saved) {
+      lastLine.textContent = "Move is on your board — saving to server failed, link still has the position";
+    }
+  }
   if (vsAi) queueMicrotask(() => maybeAiReply());
   return true;
 }
@@ -703,6 +725,15 @@ function onSquare(sq) {
 }
 
 async function sendWhatsApp() {
+  if (!vsAi && game.history().length) {
+    // Ensure server has the move before the opponent opens the link
+    const saved = await saveGame();
+    if (!saved && gameId) {
+      lastLine.textContent = "Retrying save…";
+      await new Promise((r) => setTimeout(r, 400));
+      await saveGame();
+    }
+  }
   const text = moveMessage();
   const playUrl = opponentUrl();
   // Phone share sheet attaches the play link as a preview card, not in the message.
@@ -722,6 +753,7 @@ async function sendWhatsApp() {
 }
 
 async function copyLink() {
+  if (!vsAi && game.history().length) await saveGame();
   try {
     await navigator.clipboard.writeText(opponentUrl());
     lastLine.textContent = "Opponent link copied";
@@ -842,9 +874,9 @@ async function applyRecord(rec, { animateLast = false } = {}) {
 }
 
 async function saveGame() {
-  if (!gameId) return;
+  if (!gameId) return false;
   try {
-    await fetch("/api/games/" + gameId, {
+    const res = await fetch("/api/games/" + gameId, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -854,10 +886,41 @@ async function saveGame() {
         san: lastSan(),
       }),
     });
+    if (!res.ok) return false;
     lastSeenMoveCount = game.history().length;
+    return true;
   } catch {
-    /* keep playing from local board */
+    /* keep playing from local board / URL fen */
+    return false;
   }
+}
+
+/** Prefer the richer of server record vs moves/fen embedded in the WhatsApp link. */
+function mergeRecordWithUrl(rec) {
+  const urlMoves = movesFromUrl();
+  const urlFen = params.get("fen") || "";
+  const urlLast = params.get("last") || "";
+  const urlN = Number(params.get("n") || 0) || urlMoves.length;
+  const serverMoves = Array.isArray(rec?.moves) ? rec.moves : [];
+  if (urlMoves.length > serverMoves.length) {
+    return {
+      id: rec?.id || gameId,
+      fen: urlFen || rec?.fen,
+      moves: urlMoves,
+      last: urlLast || rec?.last || "",
+      san: rec?.san || "",
+    };
+  }
+  if (!serverMoves.length && urlFen && urlN > 0) {
+    return {
+      id: rec?.id || gameId,
+      fen: urlFen,
+      moves: [],
+      last: urlLast || "",
+      san: "",
+    };
+  }
+  return rec;
 }
 
 async function boot() {
@@ -877,9 +940,21 @@ async function boot() {
     if (gameId) {
       const res = await fetch("/api/games/" + gameId);
       if (res.ok) {
-        await applyRecord(await res.json(), { animateLast: true });
+        const rec = mergeRecordWithUrl(await res.json());
+        await applyRecord(rec, { animateLast: true });
+        // If we recovered from the link, push that state back to the server
+        if ((rec.moves || []).length > 0) {
+          await saveGame();
+        }
       } else {
-        lastLine.textContent = "Game not found — start a new game";
+        // Server lost the game file — still try to open from link payload
+        const fallback = mergeRecordWithUrl({ id: gameId, fen: START, moves: [], last: "" });
+        if ((fallback.moves && fallback.moves.length) || fallback.fen) {
+          await applyRecord(fallback, { animateLast: true });
+          lastLine.textContent = "Opened from link (server game was missing)";
+        } else {
+          lastLine.textContent = "Game not found — start a new game";
+        }
       }
     } else {
       const res = await fetch("/api/games", { method: "POST" });
@@ -888,11 +963,18 @@ async function boot() {
       await applyRecord(await res.json(), { animateLast: false });
     }
   } catch {
-    lastLine.textContent = "Could not reach the game server";
-    writeUrl();
-    renderCoords();
-    renderBoard();
-    renderStatus();
+    // Offline / server down — use WhatsApp link payload if present
+    const fallback = mergeRecordWithUrl({ id: gameId, fen: params.get("fen") || START, moves: [], last: params.get("last") || "" });
+    if ((fallback.moves && fallback.moves.length) || (fallback.fen && fallback.fen !== START)) {
+      await applyRecord(fallback, { animateLast: true });
+      lastLine.textContent = "Opened from link (server unreachable)";
+    } else {
+      lastLine.textContent = "Could not reach the game server";
+      writeUrl();
+      renderCoords();
+      renderBoard();
+      renderStatus();
+    }
   }
   pollTimer = setInterval(async () => {
     if (vsAi || !gameId || myTurn() || game.isGameOver() || animating) return;
