@@ -1,5 +1,5 @@
 import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
-import { createChess3D } from "./chess3d.js";
+import { createChess3D } from "./chess3d.js?v=20260911b";
 
 const PIECE_SRC = {
   wK: "pieces-carved/wK.png", wQ: "pieces-carved/wQ.png", wR: "pieces-carved/wR.png",
@@ -656,12 +656,20 @@ function setSelected(sq) {
 }
 
 function onSquare(sq) {
-  if (animating || aiBusy) return;
+  if (animating || aiBusy) {
+    if (aiBusy) turnLine.textContent = "AI thinking… tap again after it moves";
+    return;
+  }
   if (pendingPromo) {
     if (sq === pendingPromo.to) tryMove(pendingPromo.from, pendingPromo.to, "q");
     return;
   }
-  if (!myTurn()) return;
+  if (!myTurn()) {
+    turnLine.textContent = vsAi
+      ? "Wait — AI’s turn"
+      : `Waiting for ${colourName(game.turn())} — open YOUR link after they send`;
+    return;
+  }
   const piece = game.get(sq);
   if (selected) {
     if (sq === selected) {
@@ -674,10 +682,23 @@ function onSquare(sq) {
       return;
     }
     if (tryMove(selected, sq)) return;
+    // Illegal destination — if they tapped another of their pieces, select that instead
+    if (piece && piece.color === you) {
+      setSelected(sq);
+      renderBoard();
+      return;
+    }
+    turnLine.textContent = "That square isn’t a legal move — tap a highlighted square";
+    return;
   }
   if (piece && piece.color === you) {
     setSelected(sq);
     renderBoard();
+    turnLine.textContent = `Selected — tap where to move`;
+    return;
+  }
+  if (piece) {
+    turnLine.textContent = `That’s ${colourName(piece.color)}’s piece — tap your own`;
   }
 }
 

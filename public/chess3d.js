@@ -545,8 +545,20 @@ export function createChess3D(container, hooks = {}) {
   controls.maxPolarAngle = 1.2;
   controls.target.set(0, 0.15, 0);
   controls.rotateSpeed = 0.6;
+  // Desktop: left-drag still rotates. Phone: ONE-finger must NOT rotate or taps never select
+  // (WhatsApp/iOS WebViews cancel/jitter one-finger gestures into orbit).
+  if (THREE.MOUSE) {
+    controls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.ROTATE,
+    };
+  }
   if (THREE.TOUCH) {
-    controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+    controls.touches = {
+      ONE: THREE.TOUCH.PAN, // pan is disabled → one finger is free for taps
+      TWO: THREE.TOUCH.DOLLY_ROTATE, // pinch + twist to zoom/rotate
+    };
   }
 
   // Warm product-studio lighting
@@ -686,8 +698,19 @@ export function createChess3D(container, hooks = {}) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   let ptrDown = null;
-  // Pixel-only tap gate — orbit angle jitter / damping was eating taps on phones
-  const TAP_PX = 32;
+  let lastTapAt = 0;
+  let suppressClick = false;
+  // Generous — phones + WhatsApp in-app browser jitter a lot
+  const TAP_PX = 48;
+
+  function emitSquareTap(clientX, clientY) {
+    const now = performance.now();
+    if (now - lastTapAt < 280) return; // debounce pointerup + click + touchend
+    const sq = pickSquare(clientX, clientY);
+    if (!sq || !hooks.onSquareClick) return;
+    lastTapAt = now;
+    hooks.onSquareClick(sq);
+  }
 
   function clearPieces() {
     while (piecesGroup.children.length) {
@@ -800,9 +823,10 @@ export function createChess3D(container, hooks = {}) {
       x: e.clientX,
       y: e.clientY,
       id: e.pointerId,
+      type: e.pointerType || "mouse",
     };
   });
-  renderer.domElement.addEventListener("pointerup", (e) => {
+  function finishPointer(e) {
     if (!ptrDown || (ptrDown.id != null && e.pointerId !== ptrDown.id)) {
       ptrDown = null;
       return;
@@ -810,13 +834,23 @@ export function createChess3D(container, hooks = {}) {
     const dist = Math.hypot(e.clientX - ptrDown.x, e.clientY - ptrDown.y);
     const down = ptrDown;
     ptrDown = null;
-    // Ignore orbit angle — phones always jitter the camera a little on tap
-    if (dist > TAP_PX) return;
-    const sq = pickSquare(down.x, down.y) || pickSquare(e.clientX, e.clientY);
-    if (sq && hooks.onSquareClick) hooks.onSquareClick(sq);
-  });
-  renderer.domElement.addEventListener("pointercancel", () => {
-    ptrDown = null;
+    if (dist > TAP_PX) {
+      // Drag / orbit — ignore the trailing synthetic click
+      suppressClick = true;
+      return;
+    }
+    emitSquareTap(down.x, down.y);
+  }
+  // WhatsApp / iOS often fires pointercancel instead of pointerup
+  renderer.domElement.addEventListener("pointerup", finishPointer);
+  renderer.domElement.addEventListener("pointercancel", finishPointer);
+  // Fallback for browsers that synthesise click after touch
+  renderer.domElement.addEventListener("click", (e) => {
+    if (suppressClick) {
+      suppressClick = false;
+      return;
+    }
+    emitSquareTap(e.clientX, e.clientY);
   });
 
   function animatePieceMove(from, to, { duration = 480 } = {}) {
