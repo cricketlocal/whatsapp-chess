@@ -164,10 +164,16 @@ function legalTargets(from) {
   return game.moves({ square: from, verbose: true });
 }
 
+let lastSyncedFen = "";
+
 function renderBoard() {
   if (!board3d) return;
-  if (!animating) {
+  const fen = game.fen();
+  // Only rebuild meshes when the position changes — selecting a piece must not
+  // destroy/recreate the board (that was eating taps / clearing highlight state).
+  if (!animating && fen !== lastSyncedFen) {
     board3d.syncFromGame(game, you);
+    lastSyncedFen = fen;
   }
   const lastFrom = lastMove.slice(0, 2);
   const lastTo = lastMove.slice(2, 4);
@@ -505,7 +511,7 @@ async function tryMove(from, to, promotion) {
   const preview = findVerboseMove(from, to, spec.promotion);
   if (!preview) return false;
 
-  selected = null;
+  setSelected(null);
   pendingPromo = null;
   promoEl.hidden = true;
   hintOut.hidden = true;
@@ -597,7 +603,7 @@ function startAiGame() {
   you = "w";
   gameId = "";
   game.reset();
-  selected = null;
+  setSelected(null);
   pendingPromo = null;
   lastMove = "";
   lastSeenMoveCount = 0;
@@ -644,6 +650,11 @@ function showPromo(from, to) {
   promoEl.hidden = false;
 }
 
+function setSelected(sq) {
+  selected = sq || null;
+  if (board3dEl) board3dEl.dataset.selected = selected || "";
+}
+
 function onSquare(sq) {
   if (animating || aiBusy) return;
   if (pendingPromo) {
@@ -654,7 +665,7 @@ function onSquare(sq) {
   const piece = game.get(sq);
   if (selected) {
     if (sq === selected) {
-      selected = null;
+      setSelected(null);
       renderBoard();
       return;
     }
@@ -665,7 +676,7 @@ function onSquare(sq) {
     if (tryMove(selected, sq)) return;
   }
   if (piece && piece.color === you) {
-    selected = sq;
+    setSelected(sq);
     renderBoard();
   }
 }

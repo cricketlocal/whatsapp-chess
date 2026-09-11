@@ -638,6 +638,7 @@ export function createChess3D(container, hooks = {}) {
       ov.rotation.x = -Math.PI / 2;
       ov.position.set(x, 0.29, z);
       ov.visible = false;
+      ov.raycast = () => {}; // never steal piece/square picks
       root.add(ov);
       overlays.set(sq, ov);
 
@@ -650,6 +651,7 @@ export function createChess3D(container, hooks = {}) {
       const mkBar = (w, d) => {
         const bar = new THREE.Mesh(new THREE.BoxGeometry(w, fh, d), mats.highlightRing);
         bar.position.y = 0.32;
+        bar.raycast = () => {};
         frame.add(bar);
         return bar;
       };
@@ -670,6 +672,7 @@ export function createChess3D(container, hooks = {}) {
       );
       glow.rotation.x = -Math.PI / 2;
       glow.position.set(x, 0.33, z);
+      glow.raycast = () => {};
       frame.add(glow);
       root.add(frame);
       selectFrames.set(sq, frame);
@@ -683,8 +686,8 @@ export function createChess3D(container, hooks = {}) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   let ptrDown = null;
-  const TAP_PX = 18;
-  const TAP_ANGLE = 0.035;
+  // Pixel-only tap gate — orbit angle jitter / damping was eating taps on phones
+  const TAP_PX = 32;
 
   function clearPieces() {
     while (piecesGroup.children.length) {
@@ -760,34 +763,10 @@ export function createChess3D(container, hooks = {}) {
     for (const [sq, frame] of selectFrames) {
       frame.visible = sq === selected;
     }
-    // Lift / brighten the selected piece slightly so it pops
+    // Lift selected piece slightly (no shared-material emissive — that mutated every piece)
     for (const [sq, mesh] of pieceMap) {
-      const baseY = mesh.userData.baseY ?? mesh.position.y;
       if (mesh.userData.baseY == null) mesh.userData.baseY = mesh.position.y;
-      if (sq === selected) {
-        mesh.position.y = mesh.userData.baseY + 0.12;
-        mesh.traverse((o) => {
-          if (o.isMesh && o.material && o.material.emissive) {
-            if (!o.userData._emBackup) {
-              o.userData._emBackup = {
-                color: o.material.emissive.getHex(),
-                intensity: o.material.emissiveIntensity ?? 0,
-              };
-            }
-            o.material.emissive.setHex(0xffcc44);
-            o.material.emissiveIntensity = 0.45;
-          }
-        });
-      } else {
-        mesh.position.y = mesh.userData.baseY;
-        mesh.traverse((o) => {
-          if (o.isMesh && o.material && o.userData._emBackup) {
-            o.material.emissive.setHex(o.userData._emBackup.color);
-            o.material.emissiveIntensity = o.userData._emBackup.intensity;
-            delete o.userData._emBackup;
-          }
-        });
-      }
+      mesh.position.y = mesh.userData.baseY + (sq === selected ? 0.14 : 0);
     }
   }
 
@@ -820,8 +799,6 @@ export function createChess3D(container, hooks = {}) {
     ptrDown = {
       x: e.clientX,
       y: e.clientY,
-      az: controls.getAzimuthalAngle(),
-      pol: controls.getPolarAngle(),
       id: e.pointerId,
     };
   });
@@ -831,12 +808,10 @@ export function createChess3D(container, hooks = {}) {
       return;
     }
     const dist = Math.hypot(e.clientX - ptrDown.x, e.clientY - ptrDown.y);
-    const dAz = Math.abs(controls.getAzimuthalAngle() - ptrDown.az);
-    const dPol = Math.abs(controls.getPolarAngle() - ptrDown.pol);
-    const wasTap = dist <= TAP_PX && dAz <= TAP_ANGLE && dPol <= TAP_ANGLE;
     const down = ptrDown;
     ptrDown = null;
-    if (!wasTap) return;
+    // Ignore orbit angle — phones always jitter the camera a little on tap
+    if (dist > TAP_PX) return;
     const sq = pickSquare(down.x, down.y) || pickSquare(e.clientX, e.clientY);
     if (sq && hooks.onSquareClick) hooks.onSquareClick(sq);
   });
