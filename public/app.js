@@ -1,5 +1,5 @@
 import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
-import { createChess3D } from "./chess3d.js?v=20260911b";
+import { createChess3D } from "./chess3d.js?v=20260911c";
 
 const PIECE_SRC = {
   wK: "pieces-carved/wK.png", wQ: "pieces-carved/wQ.png", wR: "pieces-carved/wR.png",
@@ -1004,6 +1004,21 @@ async function askHint() {
   hintOut.textContent = san ? `Hint: ${san}` : "No legal moves.";
 }
 
+document.getElementById("btn-orbit-left")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  board3d?.rotateBy(0.55);
+});
+document.getElementById("btn-orbit-right")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  board3d?.rotateBy(-0.55);
+});
+document.getElementById("btn-orbit-reset")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  board3d?.resetView(you);
+});
 document.getElementById("btn-whatsapp").addEventListener("click", sendWhatsApp);
 document.getElementById("btn-copy").addEventListener("click", copyLink);
 document.getElementById("btn-new").addEventListener("click", startFriendGame);

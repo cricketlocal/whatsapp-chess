@@ -37,12 +37,17 @@
       <div class="captured-pieces" id="captured-black-pieces"></div>
     </div>
 
-    <p class="view-hint">Tap a piece, then tap a square to move · two-finger twist/pinch to rotate &amp; zoom · on desktop drag to orbit</p>
+    <p class="view-hint">Tap a piece, then tap a square to move · drag (or use the arrows) to rotate · pinch to zoom</p>
     <div class="board-wrap board-wrap-3d">
       <div class="board3d" id="board3d" role="img" aria-label="3D chess board"></div>
       <!-- Hidden 2D board kept for promo piece sprites / fallback measure -->
       <div class="board" id="board" hidden></div>
       <div class="fx-layer" id="fx-layer" hidden aria-hidden="true"></div>
+      <div class="orbit-btns" role="group" aria-label="Rotate board">
+        <button type="button" class="orbit-btn" id="btn-orbit-left" aria-label="Rotate left">◀</button>
+        <button type="button" class="orbit-btn" id="btn-orbit-reset" aria-label="Reset view">⊙</button>
+        <button type="button" class="orbit-btn" id="btn-orbit-right" aria-label="Rotate right">▶</button>
+      </div>
     </div>
 
     <div class="captured-tray" id="captured-white" aria-label="Pieces captured by White">
@@ -81,6 +86,6 @@
       Or tap <strong>Play vs AI</strong> for a solo game on this device.
     </p>
   </main>
-  <script type="module" src="app.js?v=20260911b"></script>
+  <script type="module" src="app.js?v=20260911c"></script>
 </body>
 </html>

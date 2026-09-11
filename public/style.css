@@ -160,6 +160,7 @@ html, body {
     inset 0 0 0 6px var(--gold-deep);
 }
 .board-wrap-3d {
+  position: relative;
   padding: 0;
   overflow: hidden;
   background: #f3ead8;
@@ -168,6 +169,32 @@ html, body {
   box-shadow:
     0 16px 40px rgba(80, 60, 30, 0.16),
     inset 0 0 0 1px rgba(255, 248, 230, 0.7);
+}
+.orbit-btns {
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.55rem;
+  z-index: 20;
+  display: flex;
+  gap: 0.35rem;
+  pointer-events: auto;
+}
+.orbit-btn {
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid rgba(80, 55, 20, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 248, 230, 0.92);
+  color: #5a4018;
+  font-size: 1rem;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(40, 30, 10, 0.18);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.orbit-btn:active {
+  transform: scale(0.96);
+  background: #ffe7a8;
 }
 .board3d {
   width: 100%;
