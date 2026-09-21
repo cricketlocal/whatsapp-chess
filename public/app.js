@@ -1,5 +1,5 @@
 import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
-import { createChess3D } from "./chess3d.js?v=20260921a";
+import { createChess3D } from "./chess3d.js?v=20260921d";
 
 const PIECE_SRC = {
   wK: "pieces-carved/wK.png", wQ: "pieces-carved/wQ.png", wR: "pieces-carved/wR.png",
@@ -183,7 +183,14 @@ function moveMessage() {
 }
 
 function renderCoords() {
-  /* 3D board — coords omitted while the camera can rotate */
+  const filesEl = document.getElementById("files");
+  const left = document.getElementById("ranks-left");
+  const right = document.getElementById("ranks-right");
+  if (!filesEl || !left || !right) return;
+  filesEl.innerHTML = files().map((f) => `<span>${f}</span>`).join("");
+  const r = ranks();
+  left.innerHTML = r.map((n) => `<span>${n}</span>`).join("");
+  right.innerHTML = r.map((n) => `<span>${n}</span>`).join("");
 }
 
 function legalTargets(from) {
