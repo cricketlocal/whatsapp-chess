@@ -19,19 +19,105 @@
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
   background-color: var(--cream);
   background-image: url("textures/marble.jpg");
   background-size: cover;
   background-position: center;
-  background-attachment: fixed;
   color: var(--ink);
   font-family: "Segoe UI", system-ui, sans-serif;
 }
-.app {
-  max-width: 28rem;
-  margin: 0 auto;
-  padding: 1rem 0.85rem 2.5rem;
+.stage {
+  height: 100dvh;
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.55rem;
+  background: rgba(255, 252, 245, 0.94);
+  border-bottom: 1px solid var(--gold);
+  z-index: 40;
+  flex: 0 0 auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.chrome h1 {
+  margin: 0;
+  font-size: 1.02rem;
+  color: var(--green);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+  touch-action: manipulation;
+}
+.menu-btn {
+  appearance: none;
+  width: 2.2rem;
+  height: 2.2rem;
+  border: 1px solid var(--gold);
+  border-radius: 0.5rem;
+  background: #fff;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.clocks { display: flex; gap: 0.35rem; }
+.clock {
+  display: flex;
+  flex-direction: column;
+  min-width: 3.6rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 0.45rem;
+  background: #fff;
+  border: 1px solid var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.clock span { font-size: 0.58rem; font-weight: 800; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.clock b { font-size: 0.92rem; }
+.clock.on { box-shadow: inset 0 0 0 2px var(--green-2); }
+.menu-drop {
+  position: absolute;
+  top: 3.05rem;
+  left: 0.4rem;
+  width: min(22rem, calc(100% - 0.8rem));
+  background: rgba(255, 252, 245, 0.98);
+  border: 1px solid var(--gold);
+  border-radius: 0.85rem;
+  padding: 0.65rem;
+  z-index: 50;
+  display: grid;
+  gap: 0.4rem;
+  box-shadow: 0 12px 32px rgba(20, 32, 24, 0.18);
+}
+.menu-drop[hidden] { display: none !important; }
+.menu-drop .btn { width: 100%; }
+.status-slim {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.7rem 0.15rem;
+  background: rgba(255,255,255,0.72);
+}
+.status-slim .you-line { font-size: 0.78rem; }
+.status-slim .turn-line { font-size: 0.92rem; }
+.status-slim .last-line { font-size: 0.78rem; min-height: 0; }
+#confetti {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 80;
 }
 .top h1 {
   margin: 0;
@@ -63,9 +149,10 @@ html, body {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  min-height: 2.4rem;
-  margin: 0.35rem 0 0.45rem;
-  padding: 0.35rem 0.55rem;
+  min-height: 1.85rem;
+  margin: 0;
+  padding: 0.2rem 0.55rem;
+  flex: 0 0 auto;
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid var(--gold);
   border-radius: 0.65rem;
@@ -196,10 +283,15 @@ html, body {
   transform: scale(0.96);
   background: #ffe7a8;
 }
+.board-wrap-3d {
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .board3d {
   width: 100%;
-  aspect-ratio: 1 / 1.05;
-  min-height: 300px;
+  height: 100%;
+  aspect-ratio: auto;
+  min-height: 0;
   touch-action: none;
   cursor: grab;
 }
@@ -621,8 +713,26 @@ html, body {
   overflow: auto;
 }
 .help {
-  margin: 1rem 0 0;
+  margin: 0.35rem 0 0;
   color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.45;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.menu-drop .moves {
+  max-height: 5.5rem;
+  margin: 0.2rem 0 0;
+}
+@media (orientation: landscape) {
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(210px, 30vw) 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+  }
+  .chrome { grid-column: 1 / -1; }
+  .status-slim { grid-column: 1; grid-row: 2; align-self: start; padding: 0.35rem 0.55rem; }
+  #captured-black { grid-column: 1; grid-row: 3; }
+  #captured-white { grid-column: 1; grid-row: 4; }
+  .board-wrap-3d { grid-column: 2; grid-row: 2 / span 3; min-height: 0; }
+  .captured-tray { min-height: 1.55rem; padding: 0.1rem 0.45rem; }
+  .captured-label { min-width: 4.4rem; font-size: 0.65rem; }
 }

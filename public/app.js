@@ -1,5 +1,5 @@
 import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
-import { createChess3D } from "./chess3d.js?v=20260911f";
+import { createChess3D } from "./chess3d.js?v=20260921a";
 
 const PIECE_SRC = {
   wK: "pieces-carved/wK.png", wQ: "pieces-carved/wQ.png", wR: "pieces-carved/wR.png",
@@ -49,6 +49,11 @@ let animating = false;
 let vsAi = params.get("vs") === "ai";
 let aiDepth = Math.min(3, Math.max(1, Number(params.get("diff") || 2) || 2));
 let aiBusy = false;
+let clockMs = {
+  w: Math.max(0, Number(params.get("cw") || 0) || 0),
+  b: Math.max(0, Number(params.get("cb") || 0) || 0),
+};
+let clockStarted = Date.now();
 
 const boardEl = document.getElementById("board");
 const board3dEl = document.getElementById("board3d");
@@ -134,6 +139,8 @@ function writeUrl() {
     next.searchParams.set("m", hist.join("."));
   }
   if (lastMove) next.searchParams.set("last", lastMove);
+  next.searchParams.set("cw", String(Math.round(clockMs.w)));
+  next.searchParams.set("cb", String(Math.round(clockMs.b)));
   history.replaceState(null, "", next);
 }
 
@@ -149,6 +156,8 @@ function opponentUrl() {
     u.searchParams.set("m", hist.join("."));
   }
   if (lastMove) u.searchParams.set("last", lastMove);
+  u.searchParams.set("cw", String(Math.round(clockMs.w)));
+  u.searchParams.set("cb", String(Math.round(clockMs.b)));
   return u.toString();
 }
 
@@ -309,6 +318,7 @@ function renderStatus() {
   }
   const diffSel = document.getElementById("ai-diff");
   if (diffSel && String(aiDepth) !== diffSel.value) diffSel.value = String(aiDepth);
+  renderClocks();
 }
 
 function squareButton(sq) {
@@ -494,11 +504,153 @@ function spawnFlyer(fromSq, toSq, extraClass) {
   return { flyer, endX, endY };
 }
 
+let audioCtx = null;
+function ensureAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  if (!audioCtx) audioCtx = new AC();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
+function sfxSlide() {
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(480, t);
+  o.frequency.exponentialRampToValueAtTime(160, t + 0.26);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.11, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+  o.connect(g);
+  g.connect(ctx.destination);
+  o.start(t);
+  o.stop(t + 0.3);
+}
+
+function sfxExplode() {
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const n = Math.floor(ctx.sampleRate * 0.42);
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 1.55);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const f = ctx.createBiquadFilter();
+  f.type = "lowpass";
+  f.frequency.value = 420;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.38, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.42);
+  src.connect(f);
+  f.connect(g);
+  g.connect(ctx.destination);
+  src.start(t);
+  const o = ctx.createOscillator();
+  const g2 = ctx.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(90, t);
+  o.frequency.exponentialRampToValueAtTime(32, t + 0.22);
+  g2.gain.setValueAtTime(0.42, t);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+  o.connect(g2);
+  g2.connect(ctx.destination);
+  o.start(t);
+  o.stop(t + 0.3);
+}
+
+function burstConfetti(winner) {
+  const canvas = document.getElementById("confetti");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.floor(innerWidth * dpr);
+  canvas.height = Math.floor(innerHeight * dpr);
+  const light = winner === "w";
+  const palette = light
+    ? ["#f7f4ee", "#fffdf8", "#e8e0d0", "#d4af37", "#f1e0a8"]
+    : ["#111111", "#2a2a2a", "#444", "#8a6a28", "#1a1a1a"];
+  const bits = Array.from({ length: 120 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -20 - Math.random() * canvas.height * 0.4,
+    w: 4 + Math.random() * 7,
+    h: 8 + Math.random() * 10,
+    vy: 2.2 + Math.random() * 3.4,
+    vx: (Math.random() - 0.5) * 2.2,
+    rot: Math.random() * Math.PI,
+    vr: (Math.random() - 0.5) * 0.25,
+    color: palette[Math.floor(Math.random() * palette.length)],
+  }));
+  let frames = 0;
+  function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const p of bits) {
+      p.x += p.vx * dpr;
+      p.y += p.vy * dpr;
+      p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    frames += 1;
+    if (frames < 160) requestAnimationFrame(tick);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  tick();
+}
+
+function formatClock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function liveClock(side) {
+  let ms = clockMs[side] || 0;
+  if (!game.isGameOver() && game.turn() === side && clockStarted) {
+    ms += Math.max(0, Date.now() - clockStarted);
+  }
+  return ms;
+}
+
+function renderClocks() {
+  const wEl = document.getElementById("clock-w");
+  const bEl = document.getElementById("clock-b");
+  if (wEl) {
+    wEl.querySelector("b").textContent = formatClock(liveClock("w"));
+    wEl.classList.toggle("on", !game.isGameOver() && game.turn() === "w");
+  }
+  if (bEl) {
+    bEl.querySelector("b").textContent = formatClock(liveClock("b"));
+    bEl.classList.toggle("on", !game.isGameOver() && game.turn() === "b");
+  }
+}
+
+function stampClock(color) {
+  if (clockStarted) {
+    clockMs[color] += Math.max(0, Date.now() - clockStarted);
+  }
+  clockStarted = Date.now();
+}
+
+setInterval(renderClocks, 250);
+
 async function animateMove(move) {
   if (!board3d) return;
   const isCapture = !!move.captured;
   const capSq = captureSquareFor(move);
   const rook = castleRookSquares(move);
+  sfxSlide();
+  if (isCapture) setTimeout(() => sfxExplode(), 1100);
 
   // Keep 3D mesh state in sync with pre-move board before animating
   board3d.syncFromGame(game, you);
@@ -542,20 +694,25 @@ async function tryMove(from, to, promotion) {
     /* fall through and still apply move */
   }
 
+  const mover = game.turn();
+  stampClock(mover);
   const move = game.move(spec);
   animating = false;
   board3dEl.classList.remove("animating");
   if (typeof clearFx === "function") clearFx();
   if (!move) {
+    clockStarted = Date.now();
     renderBoard();
     renderStatus();
     return false;
   }
 
   lastMove = from + to + (move.promotion || "");
+  if (game.isCheckmate()) burstConfetti(move.color);
   writeUrl();
   renderBoard();
   renderStatus();
+  renderClocks();
   if (!vsAi) {
     const saved = await saveGame();
     if (!saved) {
@@ -630,6 +787,8 @@ function startAiGame() {
   lastMove = "";
   lastSeenMoveCount = 0;
   aiBusy = false;
+  clockMs = { w: 0, b: 0 };
+  clockStarted = Date.now();
   promoEl.hidden = true;
   hintOut.hidden = true;
   writeUrl();
@@ -823,15 +982,21 @@ async function replayIncomingMove(moves, lastUci) {
   animating = false;
   board3dEl.classList.remove("animating");
   if (typeof clearFx === "function") clearFx();
+  if (game.isCheckmate()) burstConfetti(verbose.color);
+  clockStarted = Date.now();
   writeUrl();
   renderBoard();
   renderStatus();
+  renderClocks();
   return true;
 }
 
 async function applyRecord(rec, { animateLast = false } = {}) {
   if (!rec) return;
   gameId = rec.id;
+  if (Number.isFinite(Number(rec.clockW))) clockMs.w = Math.max(0, Number(rec.clockW));
+  if (Number.isFinite(Number(rec.clockB))) clockMs.b = Math.max(0, Number(rec.clockB));
+  clockStarted = Date.now();
   const moves = Array.isArray(rec.moves) ? rec.moves : [];
   const incomingCount = moves.length;
 
@@ -884,6 +1049,8 @@ async function saveGame() {
         moves: game.history(),
         last: lastMove,
         san: lastSan(),
+        clockW: Math.round(clockMs.w),
+        clockB: Math.round(clockMs.b),
       }),
     });
     if (!res.ok) return false;
@@ -1111,11 +1278,13 @@ document.getElementById("ai-diff").addEventListener("change", (e) => {
   renderStatus();
 });
 
-(function secretHintOnTitle() {
-  const title = document.getElementById("title");
-  if (!title) return;
+(function secretHintOnHeader() {
+  const header = document.getElementById("header");
+  if (!header) return;
   let lastTap = 0;
-  title.addEventListener("pointerup", (e) => {
+  header.addEventListener("pointerup", (e) => {
+    if (e.target.closest("#menu-btn, #menu, .clocks")) return;
+    if (!isAdmin()) return;
     const now = Date.now();
     if (now - lastTap < 400) {
       e.preventDefault();
@@ -1126,6 +1295,33 @@ document.getElementById("ai-diff").addEventListener("change", (e) => {
     }
   });
 })();
+
+(function menuDrop() {
+  const btn = document.getElementById("menu-btn");
+  const menu = document.getElementById("menu");
+  if (!btn || !menu) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    ensureAudio();
+    const open = menu.hidden;
+    menu.hidden = !open;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.addEventListener("click", (e) => {
+    if (!menu.hidden && !e.target.closest("#menu, #menu-btn")) {
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+    }
+  });
+  for (const id of ["btn-ai", "btn-whatsapp", "btn-copy", "btn-new"]) {
+    document.getElementById(id)?.addEventListener("click", () => {
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+    }, true);
+  }
+})();
+
+document.addEventListener("pointerdown", () => ensureAudio(), { once: true });
 
 renderCoords();
 renderBoard();

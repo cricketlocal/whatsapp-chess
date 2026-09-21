@@ -20,13 +20,37 @@
   </script>
 </head>
 <body>
-  <main class="app">
-    <header class="top">
+  <main class="stage">
+    <header class="chrome" id="header">
+      <button type="button" class="menu-btn" id="menu-btn" aria-label="Menu" aria-expanded="false">☰</button>
       <h1 id="title">WhatsApp Chess</h1>
-      <p class="tag">Each match has its own game ID. Share that game on WhatsApp — other matches stay separate.</p>
+      <div class="clocks" aria-label="Total thinking time">
+        <div class="clock" id="clock-w" data-side="w"><span>White</span><b>0:00</b></div>
+        <div class="clock" id="clock-b" data-side="b"><span>Black</span><b>0:00</b></div>
+      </div>
     </header>
 
-    <section class="status-card" id="status-card">
+    <div class="menu-drop" id="menu" hidden>
+      <button type="button" class="btn btn-ai" id="btn-ai">Play vs AI</button>
+      <label class="ai-diff-label" for="ai-diff">Level
+        <select id="ai-diff" aria-label="AI difficulty">
+          <option value="1">Easy</option>
+          <option value="2" selected>Medium</option>
+          <option value="3">Hard</option>
+        </select>
+      </label>
+      <button type="button" class="btn btn-wa" id="btn-whatsapp">Send this turn on WhatsApp</button>
+      <button type="button" class="btn btn-ghost" id="btn-copy">Copy link</button>
+      <button type="button" class="btn btn-ghost" id="btn-new">New game (you White)</button>
+      <p class="help" id="help-text">
+        After you move, tap <strong>Send this turn on WhatsApp</strong>.
+        Your opponent opens the link, moves, and sends it back.
+        Or tap <strong>Play vs AI</strong> for a solo game on this device.
+      </p>
+      <ol class="moves" id="moves"></ol>
+    </div>
+
+    <section class="status-slim" id="status-card">
       <p class="you-line" id="you-line">You are White</p>
       <p class="turn-line" id="turn-line">Your move</p>
       <p class="last-line" id="last-line"></p>
@@ -37,10 +61,8 @@
       <div class="captured-pieces" id="captured-black-pieces"></div>
     </div>
 
-    <p class="view-hint">Tap a piece, then tap a square to move · drag (or use the arrows) to rotate · pinch to zoom</p>
     <div class="board-wrap board-wrap-3d">
       <div class="board3d" id="board3d" role="img" aria-label="3D chess board"></div>
-      <!-- Hidden 2D board kept for promo piece sprites / fallback measure -->
       <div class="board" id="board" hidden></div>
       <div class="fx-layer" id="fx-layer" hidden aria-hidden="true"></div>
       <div class="orbit-btns" role="group" aria-label="Rotate board">
@@ -60,32 +82,9 @@
       <div class="promo-btns" id="promo-btns"></div>
     </div>
 
-    <div class="actions ai-row">
-      <button type="button" class="btn btn-ai" id="btn-ai">Play vs AI</button>
-      <label class="ai-diff-label" for="ai-diff">Level
-        <select id="ai-diff" aria-label="AI difficulty">
-          <option value="1">Easy</option>
-          <option value="2" selected>Medium</option>
-          <option value="3">Hard</option>
-        </select>
-      </label>
-    </div>
-
-    <div class="actions">
-      <button type="button" class="btn btn-wa" id="btn-whatsapp">Send this turn on WhatsApp</button>
-      <button type="button" class="btn btn-ghost" id="btn-copy">Copy link</button>
-      <button type="button" class="btn btn-ghost" id="btn-new">New game (you White)</button>
-    </div>
-
     <p class="hint-out" id="hint-out" hidden></p>
-    <ol class="moves" id="moves"></ol>
-
-    <p class="help" id="help-text">
-      After you move, tap <strong>Send this turn on WhatsApp</strong>.
-      Your opponent opens the link, moves, and sends it back.
-      Or tap <strong>Play vs AI</strong> for a solo game on this device.
-    </p>
   </main>
-  <script type="module" src="app.js?v=20260911f"></script>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+  <script type="module" src="app.js?v=20260921a"></script>
 </body>
 </html>

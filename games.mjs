@@ -87,6 +87,8 @@ export function createGame() {
     san: "",
     created: now,
     updated: now,
+    clockW: 0,
+    clockB: 0,
   };
   write(rec);
   return rec;
@@ -104,6 +106,8 @@ export function saveGame(id, patch) {
   if (Array.isArray(patch.moves)) rec.moves = patch.moves.map(String).slice(0, 400);
   if (typeof patch.last === "string") rec.last = patch.last.slice(0, 8);
   if (typeof patch.san === "string") rec.san = patch.san.slice(0, 16);
+  if (Number.isFinite(Number(patch.clockW))) rec.clockW = Math.max(0, Math.round(Number(patch.clockW)));
+  if (Number.isFinite(Number(patch.clockB))) rec.clockB = Math.max(0, Math.round(Number(patch.clockB)));
   rec.updated = new Date().toISOString();
   write(rec);
   return rec;
@@ -118,6 +122,8 @@ export function publicGame(rec) {
     last: rec.last || "",
     san: rec.san || "",
     n: (rec.moves || []).length,
+    clockW: rec.clockW || 0,
+    clockB: rec.clockB || 0,
     updated: rec.updated,
   };
 }
